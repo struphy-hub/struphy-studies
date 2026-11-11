@@ -8,7 +8,7 @@ struphy:
   commit: null
   version: null
 # caption of the thumbnail on the landing page
-thumbnail_caption: "Run polar: radial velocity u_r in the poloidal plane at t = 966"
+thumbnail_caption: "Run polar: radial velocity u_r at t = 966, 3D cutaway (poloidal cross-section and the flux surface through the peak)"
 # one sentence, shown on the landing page
 summary: The low-mode TAE of the ShearAlfven model is converged in frequency and mode structure, and its m = 1 support towards the magnetic axis is physical, as runs with polar splines (no hole) confirm.
 description: |
