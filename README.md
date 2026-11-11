@@ -28,7 +28,11 @@ python tools/study.py create 2026-11-my-study --title "My study" \
 figures and videos of the runs (from `<run>/results/`) into `~/struphy-studies-media/<slug>/`. Then:
 
 1. Fill in the TODOs of `study.yaml`: summary (one sentence), description, findings, and the command of each run.
-   Figures of the media folder can be used in the texts as `![caption](media:figures/comparison.png)`.
+   Figures of the media folder can be used in the texts as `![caption](media:figures/comparison.png)`; the caption is
+   shown under the figure, so say which runs it shows (and their line styles or colors). The figures of the whole
+   study (`figures:`) can be given as `- path: figures/x.png` with a `caption:`. `thumbnail_caption` says what the
+   thumbnail shows (e.g. the run). Replace the thumbnail with `python tools/study.py thumbnail <slug> <image>` (it is
+   kept sharp: reduced only to 1600 px width).
 2. Upload the media folder `~/struphy-studies-media/<slug>/` to DataShare (web interface or desktop client).
 3. On DataShare, share this folder with a link, remove the password, and copy the link.
 4. `python tools/study.py link <slug> <link>`: stores the link and checks that all media are there and served
