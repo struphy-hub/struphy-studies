@@ -29,6 +29,17 @@
   border-radius: 0.2rem;
   background: white;
 }
+/* Struphy banner on the landing page and the round logo in the header */
+.struphy-banner {
+  display: block;
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto 1.5rem auto;
+}
+.md-header__button.md-logo img {
+  height: 2rem;
+  border-radius: 50%;
+}
 /* thumbnails of the cards on the landing page */
 .grid.cards img {
   width: 100%;

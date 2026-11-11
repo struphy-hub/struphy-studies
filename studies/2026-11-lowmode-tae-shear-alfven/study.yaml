@@ -69,7 +69,7 @@ findings: |
   ![Snapshots at t = 1200 differ by the continuum oscillations (base vs 32 radial elements)](media:figures/snapshot_plane_base_vs_r32_t1200.png)
 media:
   # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
-  share: null
+  share: https://datashare.mpcdf.mpg.de/s/RFMxqk9QH4yi7sg
 figures:
   - figures/compare_spectra.png
   - figures/compare_profiles.png

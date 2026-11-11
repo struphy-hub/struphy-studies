@@ -156,6 +156,8 @@ def card(slug: str, study: dict) -> str:
 
 INDEX = """# Struphy studies
 
+![Struphy](assets/struphy_banner.png){{ .struphy-banner }}
+
 Numerical studies with [Struphy]({struphy}): convergence studies, verifications and comparisons of models and
 discretizations. Each study lists its runs with the parameter files and commands to reproduce them, and shows the
 figures and videos of every run.

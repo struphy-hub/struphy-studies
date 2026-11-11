@@ -10,6 +10,8 @@ site_dir: site
 
 theme:
   name: material
+  logo: assets/struphy_logo.jpg
+  favicon: assets/struphy_logo.jpg
   features:
     - content.code.copy
     - navigation.top
