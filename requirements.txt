@@ -1,0 +1,6 @@
+mkdocs==1.6.1
+mkdocs-material==9.8.1
+mkdocs-glightbox==0.5.3
+PyYAML==6.0.3
+# only for tools/study.py create (thumbnails)
+pillow==13.0.0

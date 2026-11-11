@@ -1,0 +1,712 @@
+# Study of struphy-studies, see the README of the repository for the fields.
+title: "Low-mode TAE with ShearAlfven: convergence and the mode structure near the axis"
+date: 2026-11-11
+# drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
+draft: true
+struphy:
+  # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
+  commit: null
+  version: null
+# one sentence, shown on the landing page
+summary: The low-mode TAE of the ShearAlfven model is converged in frequency and mode structure, and its m = 1 support towards the magnetic axis is physical, as runs with polar splines (no hole) confirm.
+description: |
+  **Question.** In the low-mode TAE example of the ShearAlfven model (`examples/ShearAlfven/lowmode_tae`), the radial
+  velocity of the mode keeps a large m = 1 component all the way to the magnetic axis. Is this physical, or a numerical
+  artefact (resolution, the hole around the axis and its boundary condition, the discretization of the magnetic field)?
+  And is the TAE frequency converged?
+
+  **Setup.** Toroidal Alfvén eigenmode with n = 1 in the gap of the m = 1 and m = 2 shear Alfvén continua at q = 3/2:
+  `AdhocTorus` equilibrium (R0 = 5, a = 1, B0 = 1, q = 1.25 + r², flat density, beta 0.0018) on a `HollowTorus`
+  (hole radius 0.01) or, with polar splines, an `IGAPolarTorus` (no hole). The TAE is excited by an initial velocity with
+  m = 1 and m = 2 harmonics around r = 0.5; no energetic particles. Implicit shear Alfvén step, dt = 0.5, T = 1200
+  (about 13 periods), splines of degree 3. The base run uses 16 x 16 x 8 elements, the magnetic field in H(div) and
+  Dirichlet conditions at both radial boundaries; the other runs change one thing each (see the table of runs).
+
+  **Analysis** (`pproc_ShearAlfven.py` and the scripts in `params/`, see `struphy.post_processing.mode_analysis`):
+  the radial velocity is Fourier-transformed in the poloidal and toroidal angles at all saved times, and the
+  coefficients c_m(r, t) of n = 1 are transformed in time (Hann window). The frequency of the TAE is the peak of the
+  m = 1 spectrum at r = 0.5. The **mode structure** is the amplitude |c_m(r, omega)| at that frequency: it filters the
+  eigenmode from the continuum oscillations of the run, whose radial structure gets finer in time (phase mixing) and
+  therefore differs between snapshots of runs with different resolution.
+
+  The Struphy commit will be given once the polar preconditioner (struphy#918) and the projected equilibrium in the
+  FEEC space (struphy#922) are merged: the polar run uses them.
+findings: |
+  | run | change | omega (FFT peak) | deviation from 0.0672 | TAE structure vs base | m = 1 weight r < 0.25 |
+  |---|---|---|---|---|---|
+  | base | 16 x 16 x 8, H(div), hole 0.01 | 0.0621 | -7.6% | - | 0.29 |
+  | z4 / z16 | toroidal 4 / 16 elements | 0.0588 / 0.0621 | -12.4% / -7.6% | - / 1.7% | 0.26 / 0.29 |
+  | r32 / r64 | radial 32 / 64 elements | 0.0621 | -7.6% | 10% / 9.8% (r64 vs r32: 0.5%) | 0.28 |
+  | th32 | poloidal 32 elements | 0.0621 | -7.6% | 1.3% | 0.28 |
+  | bcfree | free BC at the hole | 0.0621 | -7.6% | 7% (first points only) | 0.29 |
+  | a1_0.1 | hole radius 0.1 | 0.0621 | -7.6% | 16% | 0.13 |
+  | hcurl | magnetic field in H(curl) | 0.0621 | -7.6% | 31% (noise near the axis) | 0.30 |
+  | polar | polar splines, no hole (16 x 18 x 8) | 0.0621 | -7.6% | 4% | 0.29 |
+
+  The expected frequency 0.0672 is the center of the gap, n v_A / ((2m + 1) R0); the frequency resolution 2 pi / T is
+  0.0052.
+
+  1. **The frequency is converged**: 0.0621 for all resolutions and variants, 7.6% below the center of the gap. Only 4
+     toroidal elements are too few (-12.4%, the near cancellation of n q - m amplifies errors of the toroidal wave
+     number); 8 suffice.
+  2. **The mode structure is converged at 32 radial elements** (r64 vs r32: 0.5%); poloidally 16 and toroidally 8
+     elements suffice. With 16 radial elements the shape is right but about 10% off, mostly the height of the m = 2
+     peak. Snapshots of the full field differ much more between resolutions (24% at t = 600, 49% at t = 1200), because
+     of the continuum oscillations, not of the TAE: compare the filtered structure, not snapshots.
+  3. **The m = 1 support towards the axis is physical.** The run with polar splines (no hole, C1-regular at the axis)
+     has the same m = 1 plateau (about 55% of the peak) down to r = 0, and m = 2 goes to zero at the axis. This is the
+     regular m = 1 behaviour (a rigid shift, constant near the axis); the m = 1 continuum crosses the TAE frequency at
+     r of about 0.42, so the m = 1 part is barely evanescent inside the gap. Artificial boundary conditions reduce
+     rather than cause it: a hole of radius 0.1 with u.n = 0 pulls m = 1 down. The H(curl) discretization shows noise
+     near the axis (a numerical artefact of that variant); its main lobe agrees.
+
+  ![Mode structure at the TAE frequency: base, polar splines and 16 toroidal elements](media:figures/filtered_polar_z16.png)
+
+  ![Radial convergence of the mode structure: 32 vs 64 radial elements](media:figures/filtered_radial_r32_r64.png)
+
+  ![Hole, boundary condition and H(curl)](media:figures/filtered_hole_bc_hcurl.png)
+
+  ![Snapshots at t = 1200 differ by the continuum oscillations (base vs 32 radial elements)](media:figures/snapshot_plane_base_vs_r32_t1200.png)
+media:
+  # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
+  share: null
+figures:
+  - figures/compare_spectra.png
+  - figures/compare_profiles.png
+  - figures/filtered_polar_z16.png
+  - figures/filtered_radial_base_r32_r64.png
+  - figures/filtered_radial_r32_r64.png
+  - figures/filtered_toroidal_base_z4_z16.png
+  - figures/filtered_hole_bc_hcurl.png
+  - figures/snapshot_plane_base_vs_r32_t1200.png
+  - figures/snapshot_profiles_base_vs_r32_t1200.png
+runs:
+  - name: base
+    description: 16 x 16 x 8, H(div), Dirichlet at the hole (radius 0.01)
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder base"
+    pproc: "python pproc_ShearAlfven.py --sim-folder base --tend 1200 --max-frames 500"
+    videos:
+      - runs/base/videos/u_r_3d.mp4
+      - runs/base/videos/u_r_3d_cut.mp4
+      - runs/base/videos/u_r_rz.mp4
+    figures:
+      - runs/base/figures/b1_3d_t0.png
+      - runs/base/figures/b1_3d_t1200.png
+      - runs/base/figures/b1_3d_t600.png
+      - runs/base/figures/b1_slices_rz_t0.png
+      - runs/base/figures/b1_slices_rz_t1200.png
+      - runs/base/figures/b1_slices_rz_t600.png
+      - runs/base/figures/b1_slices_xy_t0.png
+      - runs/base/figures/b1_slices_xy_t1200.png
+      - runs/base/figures/b1_slices_xy_t600.png
+      - runs/base/figures/b2_slices_rz_t0.png
+      - runs/base/figures/b2_slices_rz_t1200.png
+      - runs/base/figures/b2_slices_rz_t600.png
+      - runs/base/figures/b2_slices_xy_t0.png
+      - runs/base/figures/b2_slices_xy_t1200.png
+      - runs/base/figures/b2_slices_xy_t600.png
+      - runs/base/figures/b3_slices_rz_t0.png
+      - runs/base/figures/b3_slices_rz_t1200.png
+      - runs/base/figures/b3_slices_rz_t600.png
+      - runs/base/figures/b3_slices_xy_t0.png
+      - runs/base/figures/b3_slices_xy_t1200.png
+      - runs/base/figures/b3_slices_xy_t600.png
+      - runs/base/figures/b_r_harmonics_t0.png
+      - runs/base/figures/b_r_harmonics_t1200.png
+      - runs/base/figures/b_r_harmonics_t600.png
+      - runs/base/figures/energies.png
+      - runs/base/figures/tae_omega_r.png
+      - runs/base/figures/tae_profiles.png
+      - runs/base/figures/tae_spectrum.png
+      - runs/base/figures/u1_3d_t0.png
+      - runs/base/figures/u1_3d_t1200.png
+      - runs/base/figures/u1_3d_t600.png
+      - runs/base/figures/u1_slices_rz_t0.png
+      - runs/base/figures/u1_slices_rz_t1200.png
+      - runs/base/figures/u1_slices_rz_t600.png
+      - runs/base/figures/u1_slices_xy_t0.png
+      - runs/base/figures/u1_slices_xy_t1200.png
+      - runs/base/figures/u1_slices_xy_t600.png
+      - runs/base/figures/u2_slices_rz_t0.png
+      - runs/base/figures/u2_slices_rz_t1200.png
+      - runs/base/figures/u2_slices_rz_t600.png
+      - runs/base/figures/u2_slices_xy_t0.png
+      - runs/base/figures/u2_slices_xy_t1200.png
+      - runs/base/figures/u2_slices_xy_t600.png
+      - runs/base/figures/u3_slices_rz_t0.png
+      - runs/base/figures/u3_slices_rz_t1200.png
+      - runs/base/figures/u3_slices_rz_t600.png
+      - runs/base/figures/u3_slices_xy_t0.png
+      - runs/base/figures/u3_slices_xy_t1200.png
+      - runs/base/figures/u3_slices_xy_t600.png
+      - runs/base/figures/u_r_harmonics_t0.png
+      - runs/base/figures/u_r_harmonics_t1200.png
+      - runs/base/figures/u_r_harmonics_t600.png
+
+  - name: z4
+    description: 4 toroidal elements
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder z4 --num-elements 16 16 4"
+    pproc: "python pproc_ShearAlfven.py --sim-folder z4 --tend 1200 --num-elements 16 16 4 --max-frames 500"
+    videos:
+      - runs/z4/videos/u_r_3d.mp4
+      - runs/z4/videos/u_r_3d_cut.mp4
+      - runs/z4/videos/u_r_rz.mp4
+    figures:
+      - runs/z4/figures/b1_3d_t0.png
+      - runs/z4/figures/b1_3d_t1200.png
+      - runs/z4/figures/b1_3d_t600.png
+      - runs/z4/figures/b1_slices_rz_t0.png
+      - runs/z4/figures/b1_slices_rz_t1200.png
+      - runs/z4/figures/b1_slices_rz_t600.png
+      - runs/z4/figures/b1_slices_xy_t0.png
+      - runs/z4/figures/b1_slices_xy_t1200.png
+      - runs/z4/figures/b1_slices_xy_t600.png
+      - runs/z4/figures/b2_slices_rz_t0.png
+      - runs/z4/figures/b2_slices_rz_t1200.png
+      - runs/z4/figures/b2_slices_rz_t600.png
+      - runs/z4/figures/b2_slices_xy_t0.png
+      - runs/z4/figures/b2_slices_xy_t1200.png
+      - runs/z4/figures/b2_slices_xy_t600.png
+      - runs/z4/figures/b3_slices_rz_t0.png
+      - runs/z4/figures/b3_slices_rz_t1200.png
+      - runs/z4/figures/b3_slices_rz_t600.png
+      - runs/z4/figures/b3_slices_xy_t0.png
+      - runs/z4/figures/b3_slices_xy_t1200.png
+      - runs/z4/figures/b3_slices_xy_t600.png
+      - runs/z4/figures/b_r_harmonics_t0.png
+      - runs/z4/figures/b_r_harmonics_t1200.png
+      - runs/z4/figures/b_r_harmonics_t600.png
+      - runs/z4/figures/energies.png
+      - runs/z4/figures/tae_omega_r.png
+      - runs/z4/figures/tae_profiles.png
+      - runs/z4/figures/tae_spectrum.png
+      - runs/z4/figures/u1_3d_t0.png
+      - runs/z4/figures/u1_3d_t1200.png
+      - runs/z4/figures/u1_3d_t600.png
+      - runs/z4/figures/u1_slices_rz_t0.png
+      - runs/z4/figures/u1_slices_rz_t1200.png
+      - runs/z4/figures/u1_slices_rz_t600.png
+      - runs/z4/figures/u1_slices_xy_t0.png
+      - runs/z4/figures/u1_slices_xy_t1200.png
+      - runs/z4/figures/u1_slices_xy_t600.png
+      - runs/z4/figures/u2_slices_rz_t0.png
+      - runs/z4/figures/u2_slices_rz_t1200.png
+      - runs/z4/figures/u2_slices_rz_t600.png
+      - runs/z4/figures/u2_slices_xy_t0.png
+      - runs/z4/figures/u2_slices_xy_t1200.png
+      - runs/z4/figures/u2_slices_xy_t600.png
+      - runs/z4/figures/u3_slices_rz_t0.png
+      - runs/z4/figures/u3_slices_rz_t1200.png
+      - runs/z4/figures/u3_slices_rz_t600.png
+      - runs/z4/figures/u3_slices_xy_t0.png
+      - runs/z4/figures/u3_slices_xy_t1200.png
+      - runs/z4/figures/u3_slices_xy_t600.png
+      - runs/z4/figures/u_r_harmonics_t0.png
+      - runs/z4/figures/u_r_harmonics_t1200.png
+      - runs/z4/figures/u_r_harmonics_t600.png
+
+  - name: z16
+    description: 16 toroidal elements
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder z16 --num-elements 16 16 16"
+    pproc: "python pproc_ShearAlfven.py --sim-folder z16 --tend 1200 --num-elements 16 16 16 --max-frames 150"
+    videos:
+      - runs/z16/videos/u_r_3d.mp4
+      - runs/z16/videos/u_r_3d_cut.mp4
+      - runs/z16/videos/u_r_rz.mp4
+    figures:
+      - runs/z16/figures/b1_3d_t0.png
+      - runs/z16/figures/b1_3d_t1200.png
+      - runs/z16/figures/b1_3d_t600.png
+      - runs/z16/figures/b1_slices_rz_t0.png
+      - runs/z16/figures/b1_slices_rz_t1200.png
+      - runs/z16/figures/b1_slices_rz_t600.png
+      - runs/z16/figures/b1_slices_xy_t0.png
+      - runs/z16/figures/b1_slices_xy_t1200.png
+      - runs/z16/figures/b1_slices_xy_t600.png
+      - runs/z16/figures/b2_slices_rz_t0.png
+      - runs/z16/figures/b2_slices_rz_t1200.png
+      - runs/z16/figures/b2_slices_rz_t600.png
+      - runs/z16/figures/b2_slices_xy_t0.png
+      - runs/z16/figures/b2_slices_xy_t1200.png
+      - runs/z16/figures/b2_slices_xy_t600.png
+      - runs/z16/figures/b3_slices_rz_t0.png
+      - runs/z16/figures/b3_slices_rz_t1200.png
+      - runs/z16/figures/b3_slices_rz_t600.png
+      - runs/z16/figures/b3_slices_xy_t0.png
+      - runs/z16/figures/b3_slices_xy_t1200.png
+      - runs/z16/figures/b3_slices_xy_t600.png
+      - runs/z16/figures/b_r_harmonics_t0.png
+      - runs/z16/figures/b_r_harmonics_t1200.png
+      - runs/z16/figures/b_r_harmonics_t600.png
+      - runs/z16/figures/energies.png
+      - runs/z16/figures/tae_omega_r.png
+      - runs/z16/figures/tae_profiles.png
+      - runs/z16/figures/tae_spectrum.png
+      - runs/z16/figures/u1_3d_t0.png
+      - runs/z16/figures/u1_3d_t1200.png
+      - runs/z16/figures/u1_3d_t600.png
+      - runs/z16/figures/u1_slices_rz_t0.png
+      - runs/z16/figures/u1_slices_rz_t1200.png
+      - runs/z16/figures/u1_slices_rz_t600.png
+      - runs/z16/figures/u1_slices_xy_t0.png
+      - runs/z16/figures/u1_slices_xy_t1200.png
+      - runs/z16/figures/u1_slices_xy_t600.png
+      - runs/z16/figures/u2_slices_rz_t0.png
+      - runs/z16/figures/u2_slices_rz_t1200.png
+      - runs/z16/figures/u2_slices_rz_t600.png
+      - runs/z16/figures/u2_slices_xy_t0.png
+      - runs/z16/figures/u2_slices_xy_t1200.png
+      - runs/z16/figures/u2_slices_xy_t600.png
+      - runs/z16/figures/u3_slices_rz_t0.png
+      - runs/z16/figures/u3_slices_rz_t1200.png
+      - runs/z16/figures/u3_slices_rz_t600.png
+      - runs/z16/figures/u3_slices_xy_t0.png
+      - runs/z16/figures/u3_slices_xy_t1200.png
+      - runs/z16/figures/u3_slices_xy_t600.png
+      - runs/z16/figures/u_r_harmonics_t0.png
+      - runs/z16/figures/u_r_harmonics_t1200.png
+      - runs/z16/figures/u_r_harmonics_t600.png
+
+  - name: r32
+    description: 32 radial elements
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder r32 --num-elements 32 16 8"
+    pproc: "python pproc_ShearAlfven.py --sim-folder r32 --tend 1200 --num-elements 32 16 8 --max-frames 500"
+    videos:
+      - runs/r32/videos/u_r_3d.mp4
+      - runs/r32/videos/u_r_3d_cut.mp4
+      - runs/r32/videos/u_r_rz.mp4
+    figures:
+      - runs/r32/figures/b1_3d_t0.png
+      - runs/r32/figures/b1_3d_t1200.png
+      - runs/r32/figures/b1_3d_t600.png
+      - runs/r32/figures/b1_slices_rz_t0.png
+      - runs/r32/figures/b1_slices_rz_t1200.png
+      - runs/r32/figures/b1_slices_rz_t600.png
+      - runs/r32/figures/b1_slices_xy_t0.png
+      - runs/r32/figures/b1_slices_xy_t1200.png
+      - runs/r32/figures/b1_slices_xy_t600.png
+      - runs/r32/figures/b2_slices_rz_t0.png
+      - runs/r32/figures/b2_slices_rz_t1200.png
+      - runs/r32/figures/b2_slices_rz_t600.png
+      - runs/r32/figures/b2_slices_xy_t0.png
+      - runs/r32/figures/b2_slices_xy_t1200.png
+      - runs/r32/figures/b2_slices_xy_t600.png
+      - runs/r32/figures/b3_slices_rz_t0.png
+      - runs/r32/figures/b3_slices_rz_t1200.png
+      - runs/r32/figures/b3_slices_rz_t600.png
+      - runs/r32/figures/b3_slices_xy_t0.png
+      - runs/r32/figures/b3_slices_xy_t1200.png
+      - runs/r32/figures/b3_slices_xy_t600.png
+      - runs/r32/figures/b_r_harmonics_t0.png
+      - runs/r32/figures/b_r_harmonics_t1200.png
+      - runs/r32/figures/b_r_harmonics_t600.png
+      - runs/r32/figures/energies.png
+      - runs/r32/figures/tae_omega_r.png
+      - runs/r32/figures/tae_profiles.png
+      - runs/r32/figures/tae_spectrum.png
+      - runs/r32/figures/u1_3d_t0.png
+      - runs/r32/figures/u1_3d_t1200.png
+      - runs/r32/figures/u1_3d_t600.png
+      - runs/r32/figures/u1_slices_rz_t0.png
+      - runs/r32/figures/u1_slices_rz_t1200.png
+      - runs/r32/figures/u1_slices_rz_t600.png
+      - runs/r32/figures/u1_slices_xy_t0.png
+      - runs/r32/figures/u1_slices_xy_t1200.png
+      - runs/r32/figures/u1_slices_xy_t600.png
+      - runs/r32/figures/u2_slices_rz_t0.png
+      - runs/r32/figures/u2_slices_rz_t1200.png
+      - runs/r32/figures/u2_slices_rz_t600.png
+      - runs/r32/figures/u2_slices_xy_t0.png
+      - runs/r32/figures/u2_slices_xy_t1200.png
+      - runs/r32/figures/u2_slices_xy_t600.png
+      - runs/r32/figures/u3_slices_rz_t0.png
+      - runs/r32/figures/u3_slices_rz_t1200.png
+      - runs/r32/figures/u3_slices_rz_t600.png
+      - runs/r32/figures/u3_slices_xy_t0.png
+      - runs/r32/figures/u3_slices_xy_t1200.png
+      - runs/r32/figures/u3_slices_xy_t600.png
+      - runs/r32/figures/u_r_harmonics_t0.png
+      - runs/r32/figures/u_r_harmonics_t1200.png
+      - runs/r32/figures/u_r_harmonics_t600.png
+
+  - name: r64
+    description: 64 radial elements
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder r64 --num-elements 64 16 8"
+    pproc: "python pproc_ShearAlfven.py --sim-folder r64 --tend 1200 --num-elements 64 16 8 --max-frames 150"
+    videos:
+      - runs/r64/videos/u_r_3d.mp4
+      - runs/r64/videos/u_r_3d_cut.mp4
+      - runs/r64/videos/u_r_rz.mp4
+    figures:
+      - runs/r64/figures/b1_3d_t0.png
+      - runs/r64/figures/b1_3d_t1200.png
+      - runs/r64/figures/b1_3d_t600.png
+      - runs/r64/figures/b1_slices_rz_t0.png
+      - runs/r64/figures/b1_slices_rz_t1200.png
+      - runs/r64/figures/b1_slices_rz_t600.png
+      - runs/r64/figures/b1_slices_xy_t0.png
+      - runs/r64/figures/b1_slices_xy_t1200.png
+      - runs/r64/figures/b1_slices_xy_t600.png
+      - runs/r64/figures/b2_slices_rz_t0.png
+      - runs/r64/figures/b2_slices_rz_t1200.png
+      - runs/r64/figures/b2_slices_rz_t600.png
+      - runs/r64/figures/b2_slices_xy_t0.png
+      - runs/r64/figures/b2_slices_xy_t1200.png
+      - runs/r64/figures/b2_slices_xy_t600.png
+      - runs/r64/figures/b3_slices_rz_t0.png
+      - runs/r64/figures/b3_slices_rz_t1200.png
+      - runs/r64/figures/b3_slices_rz_t600.png
+      - runs/r64/figures/b3_slices_xy_t0.png
+      - runs/r64/figures/b3_slices_xy_t1200.png
+      - runs/r64/figures/b3_slices_xy_t600.png
+      - runs/r64/figures/b_r_harmonics_t0.png
+      - runs/r64/figures/b_r_harmonics_t1200.png
+      - runs/r64/figures/b_r_harmonics_t600.png
+      - runs/r64/figures/energies.png
+      - runs/r64/figures/tae_omega_r.png
+      - runs/r64/figures/tae_profiles.png
+      - runs/r64/figures/tae_spectrum.png
+      - runs/r64/figures/u1_3d_t0.png
+      - runs/r64/figures/u1_3d_t1200.png
+      - runs/r64/figures/u1_3d_t600.png
+      - runs/r64/figures/u1_slices_rz_t0.png
+      - runs/r64/figures/u1_slices_rz_t1200.png
+      - runs/r64/figures/u1_slices_rz_t600.png
+      - runs/r64/figures/u1_slices_xy_t0.png
+      - runs/r64/figures/u1_slices_xy_t1200.png
+      - runs/r64/figures/u1_slices_xy_t600.png
+      - runs/r64/figures/u2_slices_rz_t0.png
+      - runs/r64/figures/u2_slices_rz_t1200.png
+      - runs/r64/figures/u2_slices_rz_t600.png
+      - runs/r64/figures/u2_slices_xy_t0.png
+      - runs/r64/figures/u2_slices_xy_t1200.png
+      - runs/r64/figures/u2_slices_xy_t600.png
+      - runs/r64/figures/u3_slices_rz_t0.png
+      - runs/r64/figures/u3_slices_rz_t1200.png
+      - runs/r64/figures/u3_slices_rz_t600.png
+      - runs/r64/figures/u3_slices_xy_t0.png
+      - runs/r64/figures/u3_slices_xy_t1200.png
+      - runs/r64/figures/u3_slices_xy_t600.png
+      - runs/r64/figures/u_r_harmonics_t0.png
+      - runs/r64/figures/u_r_harmonics_t1200.png
+      - runs/r64/figures/u_r_harmonics_t600.png
+
+  - name: th32
+    description: 32 poloidal elements
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder th32 --num-elements 16 32 8"
+    pproc: "python pproc_ShearAlfven.py --sim-folder th32 --tend 1200 --num-elements 16 32 8 --max-frames 500"
+    videos:
+      - runs/th32/videos/u_r_3d.mp4
+      - runs/th32/videos/u_r_3d_cut.mp4
+      - runs/th32/videos/u_r_rz.mp4
+    figures:
+      - runs/th32/figures/b1_3d_t0.png
+      - runs/th32/figures/b1_3d_t1200.png
+      - runs/th32/figures/b1_3d_t600.png
+      - runs/th32/figures/b1_slices_rz_t0.png
+      - runs/th32/figures/b1_slices_rz_t1200.png
+      - runs/th32/figures/b1_slices_rz_t600.png
+      - runs/th32/figures/b1_slices_xy_t0.png
+      - runs/th32/figures/b1_slices_xy_t1200.png
+      - runs/th32/figures/b1_slices_xy_t600.png
+      - runs/th32/figures/b2_slices_rz_t0.png
+      - runs/th32/figures/b2_slices_rz_t1200.png
+      - runs/th32/figures/b2_slices_rz_t600.png
+      - runs/th32/figures/b2_slices_xy_t0.png
+      - runs/th32/figures/b2_slices_xy_t1200.png
+      - runs/th32/figures/b2_slices_xy_t600.png
+      - runs/th32/figures/b3_slices_rz_t0.png
+      - runs/th32/figures/b3_slices_rz_t1200.png
+      - runs/th32/figures/b3_slices_rz_t600.png
+      - runs/th32/figures/b3_slices_xy_t0.png
+      - runs/th32/figures/b3_slices_xy_t1200.png
+      - runs/th32/figures/b3_slices_xy_t600.png
+      - runs/th32/figures/b_r_harmonics_t0.png
+      - runs/th32/figures/b_r_harmonics_t1200.png
+      - runs/th32/figures/b_r_harmonics_t600.png
+      - runs/th32/figures/energies.png
+      - runs/th32/figures/tae_omega_r.png
+      - runs/th32/figures/tae_profiles.png
+      - runs/th32/figures/tae_spectrum.png
+      - runs/th32/figures/u1_3d_t0.png
+      - runs/th32/figures/u1_3d_t1200.png
+      - runs/th32/figures/u1_3d_t600.png
+      - runs/th32/figures/u1_slices_rz_t0.png
+      - runs/th32/figures/u1_slices_rz_t1200.png
+      - runs/th32/figures/u1_slices_rz_t600.png
+      - runs/th32/figures/u1_slices_xy_t0.png
+      - runs/th32/figures/u1_slices_xy_t1200.png
+      - runs/th32/figures/u1_slices_xy_t600.png
+      - runs/th32/figures/u2_slices_rz_t0.png
+      - runs/th32/figures/u2_slices_rz_t1200.png
+      - runs/th32/figures/u2_slices_rz_t600.png
+      - runs/th32/figures/u2_slices_xy_t0.png
+      - runs/th32/figures/u2_slices_xy_t1200.png
+      - runs/th32/figures/u2_slices_xy_t600.png
+      - runs/th32/figures/u3_slices_rz_t0.png
+      - runs/th32/figures/u3_slices_rz_t1200.png
+      - runs/th32/figures/u3_slices_rz_t600.png
+      - runs/th32/figures/u3_slices_xy_t0.png
+      - runs/th32/figures/u3_slices_xy_t1200.png
+      - runs/th32/figures/u3_slices_xy_t600.png
+      - runs/th32/figures/u_r_harmonics_t0.png
+      - runs/th32/figures/u_r_harmonics_t1200.png
+      - runs/th32/figures/u_r_harmonics_t600.png
+
+  - name: bcfree
+    description: free boundary condition at the hole
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder bcfree --bc-inner free"
+    pproc: "python pproc_ShearAlfven.py --sim-folder bcfree --tend 1200 --bc-inner free --max-frames 500"
+    videos:
+      - runs/bcfree/videos/u_r_3d.mp4
+      - runs/bcfree/videos/u_r_3d_cut.mp4
+      - runs/bcfree/videos/u_r_rz.mp4
+    figures:
+      - runs/bcfree/figures/b1_3d_t0.png
+      - runs/bcfree/figures/b1_3d_t1200.png
+      - runs/bcfree/figures/b1_3d_t600.png
+      - runs/bcfree/figures/b1_slices_rz_t0.png
+      - runs/bcfree/figures/b1_slices_rz_t1200.png
+      - runs/bcfree/figures/b1_slices_rz_t600.png
+      - runs/bcfree/figures/b1_slices_xy_t0.png
+      - runs/bcfree/figures/b1_slices_xy_t1200.png
+      - runs/bcfree/figures/b1_slices_xy_t600.png
+      - runs/bcfree/figures/b2_slices_rz_t0.png
+      - runs/bcfree/figures/b2_slices_rz_t1200.png
+      - runs/bcfree/figures/b2_slices_rz_t600.png
+      - runs/bcfree/figures/b2_slices_xy_t0.png
+      - runs/bcfree/figures/b2_slices_xy_t1200.png
+      - runs/bcfree/figures/b2_slices_xy_t600.png
+      - runs/bcfree/figures/b3_slices_rz_t0.png
+      - runs/bcfree/figures/b3_slices_rz_t1200.png
+      - runs/bcfree/figures/b3_slices_rz_t600.png
+      - runs/bcfree/figures/b3_slices_xy_t0.png
+      - runs/bcfree/figures/b3_slices_xy_t1200.png
+      - runs/bcfree/figures/b3_slices_xy_t600.png
+      - runs/bcfree/figures/b_r_harmonics_t0.png
+      - runs/bcfree/figures/b_r_harmonics_t1200.png
+      - runs/bcfree/figures/b_r_harmonics_t600.png
+      - runs/bcfree/figures/energies.png
+      - runs/bcfree/figures/tae_omega_r.png
+      - runs/bcfree/figures/tae_profiles.png
+      - runs/bcfree/figures/tae_spectrum.png
+      - runs/bcfree/figures/u1_3d_t0.png
+      - runs/bcfree/figures/u1_3d_t1200.png
+      - runs/bcfree/figures/u1_3d_t600.png
+      - runs/bcfree/figures/u1_slices_rz_t0.png
+      - runs/bcfree/figures/u1_slices_rz_t1200.png
+      - runs/bcfree/figures/u1_slices_rz_t600.png
+      - runs/bcfree/figures/u1_slices_xy_t0.png
+      - runs/bcfree/figures/u1_slices_xy_t1200.png
+      - runs/bcfree/figures/u1_slices_xy_t600.png
+      - runs/bcfree/figures/u2_slices_rz_t0.png
+      - runs/bcfree/figures/u2_slices_rz_t1200.png
+      - runs/bcfree/figures/u2_slices_rz_t600.png
+      - runs/bcfree/figures/u2_slices_xy_t0.png
+      - runs/bcfree/figures/u2_slices_xy_t1200.png
+      - runs/bcfree/figures/u2_slices_xy_t600.png
+      - runs/bcfree/figures/u3_slices_rz_t0.png
+      - runs/bcfree/figures/u3_slices_rz_t1200.png
+      - runs/bcfree/figures/u3_slices_rz_t600.png
+      - runs/bcfree/figures/u3_slices_xy_t0.png
+      - runs/bcfree/figures/u3_slices_xy_t1200.png
+      - runs/bcfree/figures/u3_slices_xy_t600.png
+      - runs/bcfree/figures/u_r_harmonics_t0.png
+      - runs/bcfree/figures/u_r_harmonics_t1200.png
+      - runs/bcfree/figures/u_r_harmonics_t600.png
+
+  - name: a1_0.1
+    description: hole radius 0.1 (instead of 0.01)
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder a1_0.1 --a1 0.1"
+    pproc: "python pproc_ShearAlfven.py --sim-folder a1_0.1 --tend 1200 --a1 0.1 --max-frames 500"
+    videos:
+      - runs/a1_0.1/videos/u_r_3d.mp4
+      - runs/a1_0.1/videos/u_r_3d_cut.mp4
+      - runs/a1_0.1/videos/u_r_rz.mp4
+    figures:
+      - runs/a1_0.1/figures/b1_3d_t0.png
+      - runs/a1_0.1/figures/b1_3d_t1200.png
+      - runs/a1_0.1/figures/b1_3d_t600.png
+      - runs/a1_0.1/figures/b1_slices_rz_t0.png
+      - runs/a1_0.1/figures/b1_slices_rz_t1200.png
+      - runs/a1_0.1/figures/b1_slices_rz_t600.png
+      - runs/a1_0.1/figures/b1_slices_xy_t0.png
+      - runs/a1_0.1/figures/b1_slices_xy_t1200.png
+      - runs/a1_0.1/figures/b1_slices_xy_t600.png
+      - runs/a1_0.1/figures/b2_slices_rz_t0.png
+      - runs/a1_0.1/figures/b2_slices_rz_t1200.png
+      - runs/a1_0.1/figures/b2_slices_rz_t600.png
+      - runs/a1_0.1/figures/b2_slices_xy_t0.png
+      - runs/a1_0.1/figures/b2_slices_xy_t1200.png
+      - runs/a1_0.1/figures/b2_slices_xy_t600.png
+      - runs/a1_0.1/figures/b3_slices_rz_t0.png
+      - runs/a1_0.1/figures/b3_slices_rz_t1200.png
+      - runs/a1_0.1/figures/b3_slices_rz_t600.png
+      - runs/a1_0.1/figures/b3_slices_xy_t0.png
+      - runs/a1_0.1/figures/b3_slices_xy_t1200.png
+      - runs/a1_0.1/figures/b3_slices_xy_t600.png
+      - runs/a1_0.1/figures/b_r_harmonics_t0.png
+      - runs/a1_0.1/figures/b_r_harmonics_t1200.png
+      - runs/a1_0.1/figures/b_r_harmonics_t600.png
+      - runs/a1_0.1/figures/energies.png
+      - runs/a1_0.1/figures/tae_omega_r.png
+      - runs/a1_0.1/figures/tae_profiles.png
+      - runs/a1_0.1/figures/tae_spectrum.png
+      - runs/a1_0.1/figures/u1_3d_t0.png
+      - runs/a1_0.1/figures/u1_3d_t1200.png
+      - runs/a1_0.1/figures/u1_3d_t600.png
+      - runs/a1_0.1/figures/u1_slices_rz_t0.png
+      - runs/a1_0.1/figures/u1_slices_rz_t1200.png
+      - runs/a1_0.1/figures/u1_slices_rz_t600.png
+      - runs/a1_0.1/figures/u1_slices_xy_t0.png
+      - runs/a1_0.1/figures/u1_slices_xy_t1200.png
+      - runs/a1_0.1/figures/u1_slices_xy_t600.png
+      - runs/a1_0.1/figures/u2_slices_rz_t0.png
+      - runs/a1_0.1/figures/u2_slices_rz_t1200.png
+      - runs/a1_0.1/figures/u2_slices_rz_t600.png
+      - runs/a1_0.1/figures/u2_slices_xy_t0.png
+      - runs/a1_0.1/figures/u2_slices_xy_t1200.png
+      - runs/a1_0.1/figures/u2_slices_xy_t600.png
+      - runs/a1_0.1/figures/u3_slices_rz_t0.png
+      - runs/a1_0.1/figures/u3_slices_rz_t1200.png
+      - runs/a1_0.1/figures/u3_slices_rz_t600.png
+      - runs/a1_0.1/figures/u3_slices_xy_t0.png
+      - runs/a1_0.1/figures/u3_slices_xy_t1200.png
+      - runs/a1_0.1/figures/u3_slices_xy_t600.png
+      - runs/a1_0.1/figures/u_r_harmonics_t0.png
+      - runs/a1_0.1/figures/u_r_harmonics_t1200.png
+      - runs/a1_0.1/figures/u_r_harmonics_t600.png
+
+  - name: hcurl
+    description: magnetic field in H(curl) (Hiptmair-Xu preconditioner)
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder hcurl --b-space Hcurl"
+    pproc: "python pproc_ShearAlfven.py --sim-folder hcurl --tend 1200 --b-space Hcurl --max-frames 150"
+    videos:
+      - runs/hcurl/videos/u_r_3d.mp4
+      - runs/hcurl/videos/u_r_3d_cut.mp4
+      - runs/hcurl/videos/u_r_rz.mp4
+    figures:
+      - runs/hcurl/figures/b1_3d_t0.png
+      - runs/hcurl/figures/b1_3d_t1200.png
+      - runs/hcurl/figures/b1_3d_t600.png
+      - runs/hcurl/figures/b1_slices_rz_t0.png
+      - runs/hcurl/figures/b1_slices_rz_t1200.png
+      - runs/hcurl/figures/b1_slices_rz_t600.png
+      - runs/hcurl/figures/b1_slices_xy_t0.png
+      - runs/hcurl/figures/b1_slices_xy_t1200.png
+      - runs/hcurl/figures/b1_slices_xy_t600.png
+      - runs/hcurl/figures/b2_slices_rz_t0.png
+      - runs/hcurl/figures/b2_slices_rz_t1200.png
+      - runs/hcurl/figures/b2_slices_rz_t600.png
+      - runs/hcurl/figures/b2_slices_xy_t0.png
+      - runs/hcurl/figures/b2_slices_xy_t1200.png
+      - runs/hcurl/figures/b2_slices_xy_t600.png
+      - runs/hcurl/figures/b3_slices_rz_t0.png
+      - runs/hcurl/figures/b3_slices_rz_t1200.png
+      - runs/hcurl/figures/b3_slices_rz_t600.png
+      - runs/hcurl/figures/b3_slices_xy_t0.png
+      - runs/hcurl/figures/b3_slices_xy_t1200.png
+      - runs/hcurl/figures/b3_slices_xy_t600.png
+      - runs/hcurl/figures/b_r_harmonics_t0.png
+      - runs/hcurl/figures/b_r_harmonics_t1200.png
+      - runs/hcurl/figures/b_r_harmonics_t600.png
+      - runs/hcurl/figures/energies.png
+      - runs/hcurl/figures/tae_omega_r.png
+      - runs/hcurl/figures/tae_profiles.png
+      - runs/hcurl/figures/tae_spectrum.png
+      - runs/hcurl/figures/u1_3d_t0.png
+      - runs/hcurl/figures/u1_3d_t1200.png
+      - runs/hcurl/figures/u1_3d_t600.png
+      - runs/hcurl/figures/u1_slices_rz_t0.png
+      - runs/hcurl/figures/u1_slices_rz_t1200.png
+      - runs/hcurl/figures/u1_slices_rz_t600.png
+      - runs/hcurl/figures/u1_slices_xy_t0.png
+      - runs/hcurl/figures/u1_slices_xy_t1200.png
+      - runs/hcurl/figures/u1_slices_xy_t600.png
+      - runs/hcurl/figures/u2_slices_rz_t0.png
+      - runs/hcurl/figures/u2_slices_rz_t1200.png
+      - runs/hcurl/figures/u2_slices_rz_t600.png
+      - runs/hcurl/figures/u2_slices_xy_t0.png
+      - runs/hcurl/figures/u2_slices_xy_t1200.png
+      - runs/hcurl/figures/u2_slices_xy_t600.png
+      - runs/hcurl/figures/u3_slices_rz_t0.png
+      - runs/hcurl/figures/u3_slices_rz_t1200.png
+      - runs/hcurl/figures/u3_slices_rz_t600.png
+      - runs/hcurl/figures/u3_slices_xy_t0.png
+      - runs/hcurl/figures/u3_slices_xy_t1200.png
+      - runs/hcurl/figures/u3_slices_xy_t600.png
+      - runs/hcurl/figures/u_r_harmonics_t0.png
+      - runs/hcurl/figures/u_r_harmonics_t1200.png
+      - runs/hcurl/figures/u_r_harmonics_t600.png
+
+  - name: polar
+    description: C1 polar splines on an IGAPolarTorus, no hole (16 x 18 x 8)
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder polar --polar --num-elements 16 18 8"
+    pproc: "python pproc_ShearAlfven.py --sim-folder polar --tend 1200 --polar --num-elements 16 18 8 --max-frames 150"
+    videos:
+      - runs/polar/videos/u_r_3d.mp4
+      - runs/polar/videos/u_r_3d_cut.mp4
+      - runs/polar/videos/u_r_rz.mp4
+    figures:
+      - runs/polar/figures/b1_3d_t0.png
+      - runs/polar/figures/b1_3d_t1200.png
+      - runs/polar/figures/b1_3d_t600.png
+      - runs/polar/figures/b1_slices_rz_t0.png
+      - runs/polar/figures/b1_slices_rz_t1200.png
+      - runs/polar/figures/b1_slices_rz_t600.png
+      - runs/polar/figures/b1_slices_xy_t0.png
+      - runs/polar/figures/b1_slices_xy_t1200.png
+      - runs/polar/figures/b1_slices_xy_t600.png
+      - runs/polar/figures/b2_slices_rz_t0.png
+      - runs/polar/figures/b2_slices_rz_t1200.png
+      - runs/polar/figures/b2_slices_rz_t600.png
+      - runs/polar/figures/b2_slices_xy_t0.png
+      - runs/polar/figures/b2_slices_xy_t1200.png
+      - runs/polar/figures/b2_slices_xy_t600.png
+      - runs/polar/figures/b3_slices_rz_t0.png
+      - runs/polar/figures/b3_slices_rz_t1200.png
+      - runs/polar/figures/b3_slices_rz_t600.png
+      - runs/polar/figures/b3_slices_xy_t0.png
+      - runs/polar/figures/b3_slices_xy_t1200.png
+      - runs/polar/figures/b3_slices_xy_t600.png
+      - runs/polar/figures/b_r_harmonics_t0.png
+      - runs/polar/figures/b_r_harmonics_t1200.png
+      - runs/polar/figures/b_r_harmonics_t600.png
+      - runs/polar/figures/energies.png
+      - runs/polar/figures/tae_omega_r.png
+      - runs/polar/figures/tae_profiles.png
+      - runs/polar/figures/tae_spectrum.png
+      - runs/polar/figures/u1_3d_t0.png
+      - runs/polar/figures/u1_3d_t1200.png
+      - runs/polar/figures/u1_3d_t600.png
+      - runs/polar/figures/u1_slices_rz_t0.png
+      - runs/polar/figures/u1_slices_rz_t1200.png
+      - runs/polar/figures/u1_slices_rz_t600.png
+      - runs/polar/figures/u1_slices_xy_t0.png
+      - runs/polar/figures/u1_slices_xy_t1200.png
+      - runs/polar/figures/u1_slices_xy_t600.png
+      - runs/polar/figures/u2_slices_rz_t0.png
+      - runs/polar/figures/u2_slices_rz_t1200.png
+      - runs/polar/figures/u2_slices_rz_t600.png
+      - runs/polar/figures/u2_slices_xy_t0.png
+      - runs/polar/figures/u2_slices_xy_t1200.png
+      - runs/polar/figures/u2_slices_xy_t600.png
+      - runs/polar/figures/u3_slices_rz_t0.png
+      - runs/polar/figures/u3_slices_rz_t1200.png
+      - runs/polar/figures/u3_slices_rz_t600.png
+      - runs/polar/figures/u3_slices_xy_t0.png
+      - runs/polar/figures/u3_slices_xy_t1200.png
+      - runs/polar/figures/u3_slices_xy_t600.png
+      - runs/polar/figures/u_r_harmonics_t0.png
+      - runs/polar/figures/u_r_harmonics_t1200.png
+      - runs/polar/figures/u_r_harmonics_t600.png

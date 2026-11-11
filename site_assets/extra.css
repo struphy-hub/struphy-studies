@@ -1,0 +1,37 @@
+/* galleries of the study pages */
+.study-videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.study-video {
+  margin: 0;
+}
+.study-video video {
+  width: 100%;
+  background: #222;
+  border-radius: 0.2rem;
+}
+.study-video figcaption {
+  font-size: 0.75rem;
+  text-align: center;
+}
+.study-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+.study-figures img {
+  width: 100%;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  background: white;
+}
+/* thumbnails of the cards on the landing page */
+.grid.cards img {
+  width: 100%;
+  border-radius: 0.2rem;
+  background: white;
+}
