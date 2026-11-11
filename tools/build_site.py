@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from study import STRUPHY_REPO, STUDIES, media_url  # noqa: E402
+from study import STRUPHY_REPO, STUDIES, figure_path, media_url  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -37,13 +37,29 @@ def commit_link(commit: str | None) -> str:
     return f"[`{short(commit)}`]({STRUPHY_REPO}/commit/{commit})"
 
 
+def figure_html(url: str, text: str, description: str | None = None) -> str:
+    """A figure with a visible caption, opened in the lightbox on click."""
+    cap = html.escape(text)
+    return (
+        f'<figure class="study-figure"><a class="glightbox" href="{html.escape(url)}" '
+        f'data-description="{html.escape(description or text)}"><img loading="lazy" src="{html.escape(url)}" '
+        f'alt="{cap}"></a><figcaption>{cap}</figcaption></figure>'
+    )
+
+
 def resolve_media(text: str, share: str | None) -> str:
-    """Replace ``media:<path>`` (in Markdown links and images) by the URL of the file on the share."""
+    """Replace the figures ``![caption](media:<path>)`` by figures with a visible caption, and other ``media:<path>``
+    links by the URL of the file on the share."""
     if not text:
         return ""
     if not share:
         # without media: the caption of each figure as text
         return re.sub(r"!\[([^\]]*)\]\(media:[^)]*\)", r"*Figure: \1 (media not linked yet).*", text)
+    text = re.sub(
+        r"!\[([^\]]*)\]\(media:([^)\s]+)\)",
+        lambda m: "\n" + figure_html(media_url(share, m.group(2)), m.group(1)) + "\n",
+        text,
+    )
     return re.sub(r"\(media:([^)\s]+)\)", lambda m: f"({media_url(share, m.group(1))})", text)
 
 
@@ -68,10 +84,7 @@ def gallery(run: dict, share: str | None) -> str:
         out.append(f'<div class="study-videos">\n{videos}\n</div>\n')
     if run.get("figures"):
         figures = "\n".join(
-            f'<a class="glightbox" href="{html.escape(media_url(share, f))}" data-description="{html.escape(caption(f))}">'
-            f'<img loading="lazy" src="{html.escape(media_url(share, f))}" alt="{html.escape(caption(f))}" '
-            f'title="{html.escape(caption(f))}"></a>'
-            for f in run["figures"]
+            figure_html(media_url(share, f), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
         )
         out.append(f'<div class="study-figures">\n{figures}\n</div>\n')
     return "\n".join(out)
@@ -101,10 +114,13 @@ def study_page(slug: str, study: dict) -> str:
     lines.append(f"## Main findings\n\n{resolve_media(study.get('findings', ''), share)}\n")
     if study.get("figures") and share:
         figures = "\n".join(
-            f'<a class="glightbox" href="{html.escape(media_url(share, f))}" data-description="{html.escape(caption(f))}">'
-            f'<img loading="lazy" src="{html.escape(media_url(share, f))}" alt="{html.escape(caption(f))}"></a>'
+            figure_html(
+                media_url(share, figure_path(f)),
+                f["caption"] if isinstance(f, dict) and f.get("caption") else caption(figure_path(f)),
+            )
             for f in study["figures"]
         )
+        lines.append("### Comparison figures\n")
         lines.append(f'<div class="study-figures">\n{figures}\n</div>\n')
 
     # reproduce
@@ -144,7 +160,9 @@ def card(slug: str, study: dict) -> str:
     thumb = f"assets/thumbnails/{slug}.png"
     title = study.get("title", slug)
     draft = " (draft)" if study.get("draft") else ""
-    return f"""-   [![{title}]({thumb})](studies/{slug}.md)
+    thumb_caption = study.get("thumbnail_caption")
+    thumb_caption = f"\n\n    <small>*{thumb_caption}*</small>" if thumb_caption else ""
+    return f"""-   [![{title}]({thumb})](studies/{slug}.md){thumb_caption}
 
     **[{title}](studies/{slug}.md)**{draft}
 

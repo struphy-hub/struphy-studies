@@ -47,7 +47,8 @@ CONTENT_TYPES = {
 }
 FIGURE_SUFFIXES = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"}
 VIDEO_SUFFIXES = {".mp4", ".webm"}
-THUMBNAIL_WIDTH = 480
+# largest width of the thumbnail in pixels (the cards show it about 650 px wide, twice that on high-DPI screens)
+THUMBNAIL_WIDTH = 1600
 SLUG = re.compile(r"^\d{4}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 
 
@@ -75,9 +76,14 @@ def set_share(slug: str, share: str) -> None:
     path.write_text(new)
 
 
+def figure_path(entry) -> str:
+    """Path of a figure entry of study.yaml: a path, or a dict with ``path`` and ``caption``."""
+    return entry["path"] if isinstance(entry, dict) else entry
+
+
 def media_files(study: dict) -> list[str]:
     """All media paths of a study (relative to its media folder), from the study figures and the runs."""
-    files = list(study.get("figures") or [])
+    files = [figure_path(f) for f in study.get("figures") or []]
     for run in study.get("runs") or []:
         files += list(run.get("videos") or []) + list(run.get("figures") or [])
     return files
@@ -145,8 +151,10 @@ def _thumbnail(src: Path, dst: Path) -> None:
 
     with Image.open(src) as image:
         image = image.convert("RGB")
-        height = round(image.height * THUMBNAIL_WIDTH / image.width)
-        image.resize((THUMBNAIL_WIDTH, height), Image.LANCZOS).save(dst, optimize=True)
+        if image.width > THUMBNAIL_WIDTH:  # only reduced, never enlarged (sharp on the cards)
+            height = round(image.height * THUMBNAIL_WIDTH / image.width)
+            image = image.resize((THUMBNAIL_WIDTH, height), Image.LANCZOS)
+        image.save(dst, optimize=True)
 
 
 def _yaml_list(items: list[str], indent: int) -> str:
@@ -377,6 +385,12 @@ def check(args) -> None:
     sys.exit(1 if problems else 0)
 
 
+def thumbnail(args) -> None:
+    load_study(args.slug)
+    _thumbnail(Path(args.image).expanduser(), study_dir(args.slug) / "thumbnail.png")
+    print(f"Wrote studies/{args.slug}/thumbnail.png from {args.image}.")
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -399,6 +413,11 @@ def main(argv=None) -> None:
     p.add_argument("slug")
     p.add_argument("share", help="public link https://datashare.mpcdf.mpg.de/s/<token> (without password)")
     p.set_defaults(func=link)
+
+    p = sub.add_parser("thumbnail", help="replace the thumbnail of a study")
+    p.add_argument("slug")
+    p.add_argument("image", help="image file (reduced to at most THUMBNAIL_WIDTH pixels wide)")
+    p.set_defaults(func=thumbnail)
 
     p = sub.add_parser("check", help="check the media of studies")
     p.add_argument("slugs", nargs="*")

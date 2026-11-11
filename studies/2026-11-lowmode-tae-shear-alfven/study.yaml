@@ -7,6 +7,8 @@ struphy:
   # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
   commit: null
   version: null
+# caption of the thumbnail on the landing page
+thumbnail_caption: "Run polar: radial velocity u_r in the poloidal plane at t = 966"
 # one sentence, shown on the landing page
 summary: The low-mode TAE of the ShearAlfven model is converged in frequency and mode structure, and its m = 1 support towards the magnetic axis is physical, as runs with polar splines (no hole) confirm.
 description: |
@@ -60,26 +62,35 @@ findings: |
      rather than cause it: a hole of radius 0.1 with u.n = 0 pulls m = 1 down. The H(curl) discretization shows noise
      near the axis (a numerical artefact of that variant); its main lobe agrees.
 
-  ![Mode structure at the TAE frequency: base, polar splines and 16 toroidal elements](media:figures/filtered_polar_z16.png)
+  ![Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid), polar (dashed: polar splines, no hole) and z16 (dotted: 16 toroidal elements).](media:figures/filtered_polar_z16.png)
 
-  ![Radial convergence of the mode structure: 32 vs 64 radial elements](media:figures/filtered_radial_r32_r64.png)
+  ![Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs r32 (solid: 32 radial elements) and r64 (dashed: 64 radial elements).](media:figures/filtered_radial_r32_r64.png)
 
-  ![Hole, boundary condition and H(curl)](media:figures/filtered_hole_bc_hcurl.png)
+  ![Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid), bcfree (dashed: free BC at the hole), a1_0.1 (dotted: hole radius 0.1) and hcurl (dash-dotted: magnetic field in H(curl)).](media:figures/filtered_hole_bc_hcurl.png)
 
-  ![Snapshots at t = 1200 differ by the continuum oscillations (base vs 32 radial elements)](media:figures/snapshot_plane_base_vs_r32_t1200.png)
+  ![Radial velocity u_r in the poloidal plane at t = 1200 of the runs base (left) and r32 (middle, 32 radial elements), and their difference (right): the snapshots differ by the fine radial ripples of the continuum oscillations, not by the TAE.](media:figures/snapshot_plane_base_vs_r32_t1200.png)
 media:
   # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
   share: https://datashare.mpcdf.mpg.de/s/RFMxqk9QH4yi7sg
 figures:
-  - figures/compare_spectra.png
-  - figures/compare_profiles.png
-  - figures/filtered_polar_z16.png
-  - figures/filtered_radial_base_r32_r64.png
-  - figures/filtered_radial_r32_r64.png
-  - figures/filtered_toroidal_base_z4_z16.png
-  - figures/filtered_hole_bc_hcurl.png
-  - figures/snapshot_plane_base_vs_r32_t1200.png
-  - figures/snapshot_profiles_base_vs_r32_t1200.png
+  - path: figures/compare_spectra.png
+    caption: "Time spectra of the m = 1 harmonic of the radial velocity at r = 0.5 for all runs (one color per run, see the legend); dashed: expected TAE frequency 0.0672, gray: +-10%."
+  - path: figures/compare_profiles.png
+    caption: "Modulus of the m = 1 (left) and m = 2 (right) harmonics of the radial velocity at the measured TAE frequency for all runs (one color per run, see the legend)."
+  - path: figures/filtered_polar_z16.png
+    caption: "Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid), polar (dashed: polar splines, no hole) and z16 (dotted: 16 toroidal elements)."
+  - path: figures/filtered_radial_base_r32_r64.png
+    caption: "Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid: 16 radial elements), r32 (dashed) and r64 (dotted)."
+  - path: figures/filtered_radial_r32_r64.png
+    caption: "Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs r32 (solid: 32 radial elements) and r64 (dashed: 64 radial elements)."
+  - path: figures/filtered_toroidal_base_z4_z16.png
+    caption: "Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid: 8 toroidal elements), z4 (dashed: 4) and z16 (dotted: 16)."
+  - path: figures/filtered_hole_bc_hcurl.png
+    caption: "Mode structure |c_m(r, omega)| of the radial velocity at the TAE frequency (left) and in the continuum band 0.035-0.055 (right); colors: m = 0 (blue), 1 (orange), 2 (green). Runs base (solid), bcfree (dashed: free BC at the hole), a1_0.1 (dotted: hole radius 0.1) and hcurl (dash-dotted: magnetic field in H(curl))."
+  - path: figures/snapshot_plane_base_vs_r32_t1200.png
+    caption: "Radial velocity u_r in the poloidal plane at t = 1200 of the runs base (left) and r32 (middle, 32 radial elements), and their difference (right): the snapshots differ by the fine radial ripples of the continuum oscillations, not by the TAE."
+  - path: figures/snapshot_profiles_base_vs_r32_t1200.png
+    caption: "Harmonics |c_m(r)| of the radial velocity at t = 1200 (snapshot, not filtered) of the runs base (solid) and r32 (dashed); colors: m = 0 (blue), 1 (orange), 2 (green), 3 (red)."
 runs:
   - name: base
     description: 16 x 16 x 8, H(div), Dirichlet at the hole (radius 0.01)

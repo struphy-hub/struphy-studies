@@ -46,3 +46,24 @@
   border-radius: 0.2rem;
   background: white;
 }
+/* figures with captions (findings, comparison figures, galleries) */
+.study-figure {
+  margin: 1rem 0;
+}
+.study-figure img {
+  width: 100%;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  background: white;
+}
+.md-typeset .study-figure figcaption {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  margin-top: 0.4rem;
+  font-style: italic;
+  text-align: center;
+  max-width: none;
+}
+.study-figures .study-figure {
+  margin: 0;
+}
