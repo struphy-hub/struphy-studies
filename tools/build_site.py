@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Generate the MkDocs pages of the site from the studies (``studies/<slug>/study.yaml``) into ``docs/``.
 
-    python tools/build_site.py [--drafts]
+    python tools/build_site.py [--drafts] [--local-media [MEDIA_DIR]]
     mkdocs serve      # preview (or: mkdocs build)
 
 Drafts (``draft: true``) are only included with ``--drafts``. The media are embedded from the public share of each
-study (MPCDF DataShare), see tools/study.py.
+study (MPCDF DataShare), see tools/study.py. With ``--local-media``, studies without a share link show their media
+from the local media folder made by ``study.py create`` (a preview before the upload; such a build is never deployed).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from study import STRUPHY_REPO, STUDIES, figure_path, media_url  # noqa: E402
+from study import DEFAULT_MEDIA_DIR, STRUPHY_REPO, STUDIES, figure_path, media_url  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -87,7 +88,16 @@ def figure_html(url: str, text: str, description: str | None = None) -> str:
     )
 
 
-def resolve_media(text: str, share: str | None) -> str:
+# share of a study whose media are previewed from the local media folder (--local-media), copied next to its page
+LOCAL_SHARE = "local-preview"
+
+
+def url(share: str, path: str) -> str:
+    """URL of the media file ``path`` of a study: on its public share, or (local preview) next to its page."""
+    return f"media/{path}" if share == LOCAL_SHARE else media_url(share, path)
+
+
+def resolve_media(text: str, share: str | None, slug: str = "") -> str:
     """Replace the figures ``![caption](media:<path>)`` by figures with a visible caption, and other ``media:<path>``
     links by the URL of the file on the share."""
     if not text:
@@ -97,10 +107,14 @@ def resolve_media(text: str, share: str | None) -> str:
         return re.sub(r"!\[([^\]]*)\]\(media:[^)]*\)", r"*Figure: \1 (media not linked yet).*", text)
     text = re.sub(
         r"!\[([^\]]*)\]\(media:([^)\s]+)\)",
-        lambda m: "\n" + figure_html(media_url(share, m.group(2)), m.group(1)) + "\n",
+        lambda m: "\n" + figure_html(url(share, m.group(2)), m.group(1)) + "\n",
         text,
     )
-    return re.sub(r"\(media:([^)\s]+)\)", lambda m: f"({media_url(share, m.group(1))})", text)
+    # Markdown links are resolved by MkDocs relative to the source file docs/studies/<slug>.md (not to the page URL
+    # studies/<slug>/ like the HTML of the figures above)
+    if share == LOCAL_SHARE:
+        return re.sub(r"\(media:([^)\s]+)\)", lambda m: f"({slug}/media/{m.group(1)})", text)
+    return re.sub(r"\(media:([^)\s]+)\)", lambda m: f"({url(share, m.group(1))})", text)
 
 
 def caption(path: str) -> str:
@@ -120,11 +134,11 @@ def gallery(run: dict, share: str | None) -> str:
         return '!!! warning "Media not linked yet"\n    The media of this study are not available.\n'
     out = []
     if run.get("videos"):
-        videos = "\n".join(video_html(media_url(share, v), caption(v)) for v in run["videos"])
+        videos = "\n".join(video_html(url(share, v), caption(v)) for v in run["videos"])
         out.append(f'<div class="study-videos">\n{videos}\n</div>\n')
     if run.get("figures"):
         figures = "\n".join(
-            figure_html(media_url(share, f), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
+            figure_html(url(share, f), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
         )
         out.append(f'<div class="study-figures">\n{figures}\n</div>\n')
     return "\n".join(out)
@@ -144,18 +158,20 @@ def study_page(slug: str, study: dict) -> str:
     meta = [f":octicons-calendar-16: {study.get('date', '')}", f":octicons-git-commit-16: {commit_link(commit)}"]
     if struphy.get("version"):
         meta.append(f"Struphy {struphy['version']}")
-    if share:
+    if share == LOCAL_SHARE:
+        meta.append(":octicons-file-media-16: media from the local media folder (preview)")
+    elif share:
         meta.append(f":octicons-file-media-16: [media folder]({share})")
     meta.append(f":octicons-mark-github-16: [study folder]({REPO}/tree/main/studies/{slug})")
     if study.get("draft"):
         meta.append("**draft**")
     lines.append(" · ".join(meta) + "\n")
-    lines.append(f"## Description\n\n{resolve_media(study.get('description', ''), share)}\n")
-    lines.append(f"## Main findings\n\n{resolve_media(study.get('findings', ''), share)}\n")
+    lines.append(f"## Description\n\n{resolve_media(study.get('description', ''), share, slug)}\n")
+    lines.append(f"## Main findings\n\n{resolve_media(study.get('findings', ''), share, slug)}\n")
     if study.get("figures") and share:
         figures = "\n".join(
             figure_html(
-                media_url(share, figure_path(f)),
+                url(share, figure_path(f)),
                 f["caption"] if isinstance(f, dict) and f.get("caption") else caption(figure_path(f)),
             )
             for f in study["figures"]
@@ -231,6 +247,15 @@ figures and videos of every run.
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--drafts", action="store_true", help="include draft studies")
+    parser.add_argument(
+        "--local-media",
+        nargs="?",
+        const=str(DEFAULT_MEDIA_DIR),
+        default=None,
+        metavar="MEDIA_DIR",
+        help="preview: show the media of the studies without a share link from their local media folder "
+        f"<MEDIA_DIR>/<slug>/ (default {DEFAULT_MEDIA_DIR}), copied into docs/; never deploy such a build",
+    )
     args = parser.parse_args(argv)
 
     shutil.rmtree(DOCS, ignore_errors=True)
@@ -244,6 +269,14 @@ def main(argv=None) -> None:
         if study.get("draft") and not args.drafts:
             continue
         slug = path.parent.name
+        local = Path(args.local_media) / slug if args.local_media else None
+        if local is not None and not (study.get("media") or {}).get("share") and not local.is_dir():
+            print(f"{slug}: no share link and no local media folder {local}; its media are not shown")
+        elif local is not None and not (study.get("media") or {}).get("share"):
+            # local preview of the media (not yet on DataShare): copied next to the page (docs/studies/<slug>/)
+            shutil.copytree(local, DOCS / "studies" / slug / "media")
+            study = {**study, "media": {**(study.get("media") or {}), "share": LOCAL_SHARE}}
+            print(f"{slug}: media from {local} (local preview)")
         studies.append((slug, study))
         (DOCS / "studies" / f"{slug}.md").write_text(study_page(slug, study))
         thumb = path.parent / "thumbnail.png"

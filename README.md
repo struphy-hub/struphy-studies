@@ -37,7 +37,8 @@ figures and videos of the runs (from `<run>/results/`) into `~/struphy-studies-m
 3. On DataShare, share this folder with a link, remove the password, and copy the link.
 4. `python tools/study.py link <slug> <link>`: stores the link and checks that all media are there and served
    correctly.
-5. Preview: `python tools/build_site.py --drafts && mkdocs serve`.
+5. Preview: `python tools/build_site.py --drafts && mkdocs serve`. Before the upload (steps 2-4), `--local-media`
+   shows the media from the local media folder instead (never deploy such a build).
 6. Set `draft: false` and open a pull request. After merging, the site is rebuilt.
 
 `python tools/study.py check --all` checks the media of all studies (done weekly by CI for the published ones).
