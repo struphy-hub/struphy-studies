@@ -14,6 +14,7 @@ import argparse
 import html
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,10 +32,49 @@ def short(commit: str | None) -> str:
     return commit[:9] if commit else "?"
 
 
+_TAGS: dict[str, list[str]] | None = None
+
+
+def struphy_tags() -> dict[str, list[str]]:
+    """The tags of the Struphy repository by commit (annotated tags by the commit they point to), read once with
+    ``git ls-remote``; empty if the repository cannot be reached (the pages are then built without tags)."""
+    global _TAGS
+    if _TAGS is None:
+        _TAGS = {}
+        try:
+            out = subprocess.run(
+                ["git", "ls-remote", "--tags", STRUPHY_REPO], capture_output=True, text=True, timeout=60, check=True
+            ).stdout
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"warning: tags of {STRUPHY_REPO} not available ({e}), commits are shown without tags")
+            return _TAGS
+        peeled = {}
+        for line in out.splitlines():
+            sha, _, ref = line.partition("\t")
+            if not ref.startswith("refs/tags/"):
+                continue
+            name = ref.removeprefix("refs/tags/")
+            if name.endswith("^{}"):
+                peeled[name.removesuffix("^{}")] = sha
+            else:
+                peeled.setdefault(name, sha)
+        for name, sha in peeled.items():
+            _TAGS.setdefault(sha, []).append(name)
+        for names in _TAGS.values():
+            names.sort()
+    return _TAGS
+
+
 def commit_link(commit: str | None) -> str:
+    """Link to the Struphy commit, followed by its tags (if any)."""
     if not commit:
         return "Struphy commit: not given"
-    return f"[`{short(commit)}`]({STRUPHY_REPO}/commit/{commit})"
+    link = f"[`{short(commit)}`]({STRUPHY_REPO}/commit/{commit})"
+    tags = [t for sha, names in struphy_tags().items() if sha.startswith(commit) for t in names]
+    if tags:
+        names = ", ".join(f"[`{t}`]({STRUPHY_REPO}/tree/{t})" for t in tags)
+        link += f" (tag{'s' if len(tags) > 1 else ''} {names})"
+    return link
 
 
 def figure_html(url: str, text: str, description: str | None = None) -> str:
@@ -123,6 +163,13 @@ def study_page(slug: str, study: dict) -> str:
         lines.append("### Comparison figures\n")
         lines.append(f'<div class="study-figures">\n{figures}\n</div>\n')
 
+    # galleries (videos and figures of each run)
+    lines.append("## Videos\n")
+    for run in study.get("runs") or []:
+        lines.append(f'<a id="run-{run["name"]}"></a>\n')
+        lines.append(f'??? abstract "{run["name"]}: {run.get("description", "")}"\n')
+        lines.append(indent(gallery(run, share)) + "\n")
+
     # reproduce
     lines.append("## Reproduce\n")
     if commit:
@@ -146,12 +193,6 @@ def study_page(slug: str, study: dict) -> str:
         lines.append(f"**{run['name']}**\n")
         lines.append(f"```bash\n{run.get('command', '')}\n{run.get('pproc', '')}\n```\n".replace("\n\n```", "\n```"))
 
-    # galleries
-    lines.append("## Runs\n")
-    for run in study.get("runs") or []:
-        lines.append(f'<a id="run-{run["name"]}"></a>\n')
-        lines.append(f'??? abstract "{run["name"]}: {run.get("description", "")}"\n')
-        lines.append(indent(gallery(run, share)) + "\n")
     return "\n".join(lines)
 
 
