@@ -2,10 +2,10 @@
 title: "ITPA TAE with ShearAlfven: magnetic field in H(curl) vs H(div)"
 date: 2026-11-12
 # drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
-draft: true
+draft: false
 struphy:
   # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
-  commit: 6d2dd9b8068878539170fa7423522d888293bf10
+  commit: b93810444da2d0fbcfb2232365a2c0df3daa5c6c
   version: "3.6.1"
 # caption of the thumbnail on the landing page
 thumbnail_caption: "Run hcurl_24x88x8: radial velocity (first component of u in the 2-form basis) at t = 250, 3D cutaway with the flux surface r = 0.5 of the gap"
@@ -70,7 +70,7 @@ findings: |
   ![Run hdiv_24x44x8 (no TAE): log10 of |A_m(r, omega)| of the radial velocity for m = 9 ... 12 with the cylindrical shear Alfvén continua (white; solid: the m of the panel); red dashed: center of the gap.](media:figures/omega_r_hdiv_24x44x8.png)
 media:
   # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
-  share: null
+  share: https://datashare.mpcdf.mpg.de/s/8j2RfAPfzmY5J2a
 figures:
   - path: figures/compare_spectra.png
     caption: "Spectra |A_10(r = 0.5, omega)|² of the (m = 10, n = 6) harmonic of the radial velocity; colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div); black dashed: center of the gap 0.0859, gray: +-10%."
