@@ -1,0 +1,328 @@
+# Study of struphy-studies, see the README of the repository for the fields.
+title: "ITPA TAE with ShearAlfven: magnetic field in H(curl) vs H(div)"
+date: 2026-11-12
+# drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
+draft: false
+struphy:
+  # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
+  commit: b93810444da2d0fbcfb2232365a2c0df3daa5c6c
+  version: "3.6.1"
+# caption of the thumbnail on the landing page
+thumbnail_caption: "Run hcurl_24x88x8: radial velocity (first component of u in the 2-form basis) at t = 250, 3D cutaway with the flux surface r = 0.5 of the gap"
+# one sentence, shown on the landing page
+summary: The ShearAlfven model reproduces the n = 6 TAE of the ITPA benchmark within 1.5-3% of the ideal MHD frequency with the magnetic field in H(curl) on 24 x 44 x 8 and 24 x 88 x 8 elements and in H(div) on 24 x 88 x 8; H(div) conserves the energy exactly but needs the finer poloidal grid, H(curl) damps numerically, strongly on the coarse grid.
+description: |
+  **Question.** The ShearAlfven model has two discretizations of the magnetic field: in H(curl) (`b_space="Hcurl"`,
+  implicit curl-curl solve for the magnetic field, preconditioned by Hiptmair-Xu; not exactly energy conserving) and in
+  H(div) (`b_space="Hdiv"`, implicit Schur solve for the velocity, Kronecker preconditioner with E x B correction;
+  exactly energy conserving). Do both give the toroidal Alfvén eigenmode (TAE) of the ITPA benchmark, at which
+  resolution, and how do they differ in energy behaviour and mode structure? The runs are the physics check of the
+  strong-scaling profiling cases of the same example (struphy#932, `submit_ShearAlfven_scaling.py`), which time the
+  same setup with several preconditioners per space.
+
+  **Setup** (`examples/ShearAlfven/itpa_tae_benchmark`, Koenies et al., Nucl. Fusion 58, 126027 (2018)).
+  Large-aspect-ratio tokamak with circular flux surfaces (`AdhocTorus`): R0 = 10, a = 1, B0 = 3,
+  q(r) = 1.71 + 0.16 r², flat hydrogen density 2e19 m⁻³, beta 0.0018. Only n = 6 is computed, on a sixth of the torus
+  (`HollowTorus`, tor_period = 6, hole of radius a1 = 0.1; the default of the example is now 0.01, so the runs pass
+  `--a1 0.1`). The TAE sits in the gap of the m = 10 and m = 11 continua at q = 1.75, r = 0.5, with
+  omega_TAE = n / (2m + 1) v_A / R0 = 0.0859 (Alfvén units; 4.2e5 rad/s) at the center of the gap; the ITPA ideal
+  MHD frequency is 4.07e5 rad/s (mean of CAS3D 4.01e5 and GYGLES 4.13e5). The TAE is excited by an initial velocity
+  with m = 10 and 11 harmonics around r = 0.5; no energetic particles. Cubic splines, dt = 0.2, T = 500 (about 6.8
+  periods; T = 300 for hdiv_24x44x8, which only has to show that there is no TAE), 4 MPI ranks. Grids: 24 x 88 x 8
+  (8 elements per poloidal wavelength of m = 10) and the default 24 x 44 x 8 of the example (4.4). With H(div),
+  Dirichlet conditions at both radial walls; with H(curl), free conditions (u.n = 0 weakly).
+
+  **Analysis** (`pproc_ShearAlfven.py`, `compare.py`, see `struphy.post_processing.mode_analysis`). The radial velocity
+  is Fourier-transformed in the poloidal and toroidal angles at all saved times; the coefficients c_m(r, t) of n = 6
+  are transformed in time (Hann window). The pproc measures the frequency as the refined spectral peak of the
+  (m = 10, n = 6) coefficient at r = 0.5, projected on its initial phase; `compare.py` gives the FFT peak at r = 0.5
+  (on the zero-padded frequency grid), the (r, omega) maps with the cylindrical continua and the mode structure
+  |c_m(r, omega)| at the TAE frequency. The frequency resolution 2 pi / T is 0.0126 (0.021 for T = 300). The 3D views
+  show the flux surface r = 0.5 of the gap.
+findings: |
+  | run | magnetic field | grid | omega (pproc) | omega [rad/s] | dev. from ITPA | energy at t = 300 / at T |
+  |---|---|---|---|---|---|---|
+  | hcurl_24x88x8 | H(curl), Hiptmair-Xu | 24 x 88 x 8 | 0.0855 | 4.17e5 | +2.5% | 0.99 / 0.896 |
+  | hdiv_24x88x8 | H(div), Kronecker | 24 x 88 x 8 | 0.0846 | 4.13e5 | +1.4% | 1.000 / 1.000 |
+  | hcurl_24x44x8 | H(curl), Hiptmair-Xu | 24 x 44 x 8 | 0.0862 | 4.20e5 | +3.2% | 0.56 / 0.273 |
+  | hdiv_24x44x8 | H(div), Kronecker | 24 x 44 x 8 (T = 300) | 0.134 (no TAE) | 6.5e5 | +61% | 1.000 |
+
+  1. **Three runs have the TAE.** H(curl) on both grids and H(div) on 24 x 88 x 8 give omega = 0.0846 - 0.0862,
+     within 1.5% of the center of the gap and 1.4 - 3.2% above the ITPA value; the differences between the runs are
+     far below the frequency resolution 0.0126 (the FFT peak is 0.0831 for all three). The (r, omega) maps show the
+     mode in the gap at the crossing of the m = 10 and m = 11 continua.
+  2. **The mode structure is the same in H(curl) and H(div)** on 24 x 88 x 8: m = 10 dominant, m = 11 at about 60%,
+     both localized in 0.4 < r < 0.6, with small m = 9 and m = 12 sidebands. H(curl) has a small m = 11 background
+     (about 5%) inside r < 0.4 that H(div) does not have.
+  3. **H(div) needs the finer poloidal grid.** On 24 x 44 x 8 (4.4 elements per poloidal wavelength), the commuting
+     projection of B0 x u in the induction equation makes the poloidal mode number effectively 2-3% too small; near
+     the gap, where n q - m nearly cancels, this shifts the continua so much that there is no TAE: the spectrum
+     peaks at 0.134. H(curl) has no such error (weak products with mass matrices) and gives the TAE on both grids.
+  4. **Energy.** H(div) conserves the total energy exactly. The H(curl) step damps numerically, and the damping
+     falls strongly with the poloidal resolution (the resolution along the background field): 44% of the energy is
+     lost up to t = 300 on 24 x 44 x 8, 1% on 24 x 88 x 8 (10% up to T = 500, faster after t = 300, when phase
+     mixing of the continuum oscillations creates finer radial structure). The frequency is not affected.
+
+  ![Spectra |A_10(r = 0.5, omega)|² of the (m = 10, n = 6) harmonic of the radial velocity; colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div); black dashed: center of the gap 0.0859, gray: +-10%.](media:figures/compare_spectra.png)
+
+  ![Total energy over the initial one; colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div) (hdiv_24x44x8 up to t = 300).](media:figures/compare_energy.png)
+
+  ![Run hdiv_24x44x8 (no TAE): log10 of |A_m(r, omega)| of the radial velocity for m = 9 ... 12 with the cylindrical shear Alfvén continua (white; solid: the m of the panel); red dashed: center of the gap.](media:figures/omega_r_hdiv_24x44x8.png)
+media:
+  # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
+  share: https://datashare.mpcdf.mpg.de/s/8j2RfAPfzmY5J2a
+figures:
+  - path: figures/compare_spectra.png
+    caption: "Spectra |A_10(r = 0.5, omega)|² of the (m = 10, n = 6) harmonic of the radial velocity; colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div); black dashed: center of the gap 0.0859, gray: +-10%."
+  - path: figures/compare_energy.png
+    caption: "Total energy over the initial one; colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div)."
+  - path: figures/compare_profiles.png
+    caption: "Mode structure |A_m(r, omega)| of the m = 10 (left) and m = 11 (right) harmonics at the FFT peak of each run (hdiv_24x44x8: 0.133, no TAE); colors: 24 x 88 x 8 (orange), 24 x 44 x 8 (blue); solid: H(curl), dashed: H(div); dotted: r = 0.5."
+  - path: figures/omega_r_hcurl_24x88x8.png
+    caption: "Run hcurl_24x88x8: log10 of |A_m(r, omega)| of the radial velocity for m = 9 ... 12 (n = 6) with the cylindrical shear Alfvén continua (white; solid: the m of the panel); red dashed: center of the gap."
+  - path: figures/omega_r_hdiv_24x88x8.png
+    caption: "Run hdiv_24x88x8: as for hcurl_24x88x8."
+  - path: figures/omega_r_hcurl_24x44x8.png
+    caption: "Run hcurl_24x44x8: as for hcurl_24x88x8."
+  - path: figures/omega_r_hdiv_24x44x8.png
+    caption: "Run hdiv_24x44x8 (no TAE): as for hcurl_24x88x8; the spectrum is shifted above the gap."
+runs:
+  - name: hcurl_24x88x8
+    description: magnetic field in H(curl) (Hiptmair-Xu preconditioner), 24 x 88 x 8
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --sim-folder hcurl_24x88x8 --num-elements 24 88 8 --b-space Hcurl --a1 0.1"
+    pproc: "bash pproc_case.sh hcurl_24x88x8 --num-elements 24 88 8 --b-space Hcurl --a1 0.1"
+    videos:
+      - runs/hcurl_24x88x8/videos/u_r_3d.mp4
+      - runs/hcurl_24x88x8/videos/u_r_3d_cut.mp4
+      - runs/hcurl_24x88x8/videos/u_r_rz.mp4
+    figures:
+      - runs/hcurl_24x88x8/figures/b1_3d_t0.png
+      - runs/hcurl_24x88x8/figures/b1_3d_t250.png
+      - runs/hcurl_24x88x8/figures/b1_3d_t500.png
+      - runs/hcurl_24x88x8/figures/b1_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/b1_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/b1_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/b1_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/b1_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/b1_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/b2_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/b2_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/b2_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/b2_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/b2_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/b2_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/b3_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/b3_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/b3_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/b3_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/b3_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/b3_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/b_r_harmonics_t0.png
+      - runs/hcurl_24x88x8/figures/b_r_harmonics_t250.png
+      - runs/hcurl_24x88x8/figures/b_r_harmonics_t500.png
+      - runs/hcurl_24x88x8/figures/energies.png
+      - runs/hcurl_24x88x8/figures/u1_3d_t0.png
+      - runs/hcurl_24x88x8/figures/u1_3d_t250.png
+      - runs/hcurl_24x88x8/figures/u1_3d_t500.png
+      - runs/hcurl_24x88x8/figures/u1_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/u1_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/u1_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/u1_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/u1_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/u1_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/u2_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/u2_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/u2_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/u2_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/u2_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/u2_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/u3_slices_rz_t0.png
+      - runs/hcurl_24x88x8/figures/u3_slices_rz_t250.png
+      - runs/hcurl_24x88x8/figures/u3_slices_rz_t500.png
+      - runs/hcurl_24x88x8/figures/u3_slices_xy_t0.png
+      - runs/hcurl_24x88x8/figures/u3_slices_xy_t250.png
+      - runs/hcurl_24x88x8/figures/u3_slices_xy_t500.png
+      - runs/hcurl_24x88x8/figures/u_r_harmonics_t0.png
+      - runs/hcurl_24x88x8/figures/u_r_harmonics_t250.png
+      - runs/hcurl_24x88x8/figures/u_r_harmonics_t500.png
+
+  - name: hdiv_24x88x8
+    description: magnetic field in H(div) (Kronecker preconditioner), 24 x 88 x 8
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --sim-folder hdiv_24x88x8 --num-elements 24 88 8 --b-space Hdiv --a1 0.1"
+    pproc: "bash pproc_case.sh hdiv_24x88x8 --num-elements 24 88 8 --b-space Hdiv --a1 0.1"
+    videos:
+      - runs/hdiv_24x88x8/videos/u_r_3d.mp4
+      - runs/hdiv_24x88x8/videos/u_r_3d_cut.mp4
+      - runs/hdiv_24x88x8/videos/u_r_rz.mp4
+    figures:
+      - runs/hdiv_24x88x8/figures/b1_3d_t0.png
+      - runs/hdiv_24x88x8/figures/b1_3d_t250.png
+      - runs/hdiv_24x88x8/figures/b1_3d_t500.png
+      - runs/hdiv_24x88x8/figures/b1_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/b1_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/b1_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/b1_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/b1_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/b1_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/b2_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/b2_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/b2_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/b2_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/b2_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/b2_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/b3_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/b3_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/b3_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/b3_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/b3_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/b3_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/b_r_harmonics_t0.png
+      - runs/hdiv_24x88x8/figures/b_r_harmonics_t250.png
+      - runs/hdiv_24x88x8/figures/b_r_harmonics_t500.png
+      - runs/hdiv_24x88x8/figures/energies.png
+      - runs/hdiv_24x88x8/figures/u1_3d_t0.png
+      - runs/hdiv_24x88x8/figures/u1_3d_t250.png
+      - runs/hdiv_24x88x8/figures/u1_3d_t500.png
+      - runs/hdiv_24x88x8/figures/u1_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/u1_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/u1_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/u1_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/u1_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/u1_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/u2_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/u2_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/u2_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/u2_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/u2_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/u2_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/u3_slices_rz_t0.png
+      - runs/hdiv_24x88x8/figures/u3_slices_rz_t250.png
+      - runs/hdiv_24x88x8/figures/u3_slices_rz_t500.png
+      - runs/hdiv_24x88x8/figures/u3_slices_xy_t0.png
+      - runs/hdiv_24x88x8/figures/u3_slices_xy_t250.png
+      - runs/hdiv_24x88x8/figures/u3_slices_xy_t500.png
+      - runs/hdiv_24x88x8/figures/u_r_harmonics_t0.png
+      - runs/hdiv_24x88x8/figures/u_r_harmonics_t250.png
+      - runs/hdiv_24x88x8/figures/u_r_harmonics_t500.png
+
+  - name: hcurl_24x44x8
+    description: magnetic field in H(curl) (Hiptmair-Xu preconditioner), 24 x 44 x 8
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --sim-folder hcurl_24x44x8 --num-elements 24 44 8 --b-space Hcurl --a1 0.1"
+    pproc: "bash pproc_case.sh hcurl_24x44x8 --num-elements 24 44 8 --b-space Hcurl --a1 0.1"
+    videos:
+      - runs/hcurl_24x44x8/videos/u_r_3d.mp4
+      - runs/hcurl_24x44x8/videos/u_r_3d_cut.mp4
+      - runs/hcurl_24x44x8/videos/u_r_rz.mp4
+    figures:
+      - runs/hcurl_24x44x8/figures/b1_3d_t0.png
+      - runs/hcurl_24x44x8/figures/b1_3d_t250.png
+      - runs/hcurl_24x44x8/figures/b1_3d_t500.png
+      - runs/hcurl_24x44x8/figures/b1_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/b1_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/b1_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/b1_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/b1_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/b1_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/b2_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/b2_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/b2_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/b2_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/b2_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/b2_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/b3_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/b3_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/b3_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/b3_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/b3_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/b3_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/b_r_harmonics_t0.png
+      - runs/hcurl_24x44x8/figures/b_r_harmonics_t250.png
+      - runs/hcurl_24x44x8/figures/b_r_harmonics_t500.png
+      - runs/hcurl_24x44x8/figures/energies.png
+      - runs/hcurl_24x44x8/figures/u1_3d_t0.png
+      - runs/hcurl_24x44x8/figures/u1_3d_t250.png
+      - runs/hcurl_24x44x8/figures/u1_3d_t500.png
+      - runs/hcurl_24x44x8/figures/u1_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/u1_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/u1_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/u1_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/u1_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/u1_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/u2_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/u2_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/u2_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/u2_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/u2_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/u2_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/u3_slices_rz_t0.png
+      - runs/hcurl_24x44x8/figures/u3_slices_rz_t250.png
+      - runs/hcurl_24x44x8/figures/u3_slices_rz_t500.png
+      - runs/hcurl_24x44x8/figures/u3_slices_xy_t0.png
+      - runs/hcurl_24x44x8/figures/u3_slices_xy_t250.png
+      - runs/hcurl_24x44x8/figures/u3_slices_xy_t500.png
+      - runs/hcurl_24x44x8/figures/u_r_harmonics_t0.png
+      - runs/hcurl_24x44x8/figures/u_r_harmonics_t250.png
+      - runs/hcurl_24x44x8/figures/u_r_harmonics_t500.png
+
+  - name: hdiv_24x44x8
+    description: magnetic field in H(div) (Kronecker preconditioner), 24 x 44 x 8, T = 300 (no TAE)
+    params: params_ShearAlfven.py
+    command: "mpirun -n 4 python params_ShearAlfven.py --sim-folder hdiv_24x44x8 --num-elements 24 44 8 --b-space Hdiv --a1 0.1 --tend 300"
+    pproc: "bash pproc_case.sh hdiv_24x44x8 --num-elements 24 44 8 --b-space Hdiv --a1 0.1 --tend 300"
+    videos:
+      - runs/hdiv_24x44x8/videos/u_r_3d.mp4
+      - runs/hdiv_24x44x8/videos/u_r_3d_cut.mp4
+      - runs/hdiv_24x44x8/videos/u_r_rz.mp4
+    figures:
+      - runs/hdiv_24x44x8/figures/b1_3d_t0.png
+      - runs/hdiv_24x44x8/figures/b1_3d_t150.png
+      - runs/hdiv_24x44x8/figures/b1_3d_t300.png
+      - runs/hdiv_24x44x8/figures/b1_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/b1_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/b1_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/b1_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/b1_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/b1_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/b2_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/b2_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/b2_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/b2_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/b2_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/b2_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/b3_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/b3_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/b3_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/b3_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/b3_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/b3_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/b_r_harmonics_t0.png
+      - runs/hdiv_24x44x8/figures/b_r_harmonics_t150.png
+      - runs/hdiv_24x44x8/figures/b_r_harmonics_t300.png
+      - runs/hdiv_24x44x8/figures/energies.png
+      - runs/hdiv_24x44x8/figures/u1_3d_t0.png
+      - runs/hdiv_24x44x8/figures/u1_3d_t150.png
+      - runs/hdiv_24x44x8/figures/u1_3d_t300.png
+      - runs/hdiv_24x44x8/figures/u1_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/u1_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/u1_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/u1_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/u1_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/u1_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/u2_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/u2_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/u2_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/u2_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/u2_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/u2_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/u3_slices_rz_t0.png
+      - runs/hdiv_24x44x8/figures/u3_slices_rz_t150.png
+      - runs/hdiv_24x44x8/figures/u3_slices_rz_t300.png
+      - runs/hdiv_24x44x8/figures/u3_slices_xy_t0.png
+      - runs/hdiv_24x44x8/figures/u3_slices_xy_t150.png
+      - runs/hdiv_24x44x8/figures/u3_slices_xy_t300.png
+      - runs/hdiv_24x44x8/figures/u_r_harmonics_t0.png
+      - runs/hdiv_24x44x8/figures/u_r_harmonics_t150.png
+      - runs/hdiv_24x44x8/figures/u_r_harmonics_t300.png
