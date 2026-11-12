@@ -5,7 +5,7 @@ date: 2026-11-11
 draft: true
 struphy:
   # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
-  commit: null
+  commit: 29559dcaf4b4cf9436b33eb32f1fb5f86c77ef22
   version: null
 # caption of the thumbnail on the landing page
 thumbnail_caption: "Run polar: radial velocity u_r at t = 966, 3D cutaway (poloidal cross-section and the flux surface through the peak)"
@@ -31,8 +31,9 @@ description: |
   eigenmode from the continuum oscillations of the run, whose radial structure gets finer in time (phase mixing) and
   therefore differs between snapshots of runs with different resolution.
 
-  The Struphy commit will be given once the polar preconditioner (struphy#918) and the projected equilibrium in the
-  FEEC space (struphy#922) are merged: the polar run uses them.
+  The runs were made with the development branches of the polar preconditioner (struphy#918) and of the projected
+  equilibrium in the FEEC space (struphy#922), before their merge. The Struphy commit of the study is on `devel` after
+  both merges; the parameter and post-processing files were checked to run with it (test runs of base, polar, hcurl).
 findings: |
   | run | change | omega (FFT peak) | deviation from 0.0672 | TAE structure vs base | m = 1 weight r < 0.25 |
   |---|---|---|---|---|---|
@@ -663,7 +664,7 @@ runs:
     description: C1 polar splines on an IGAPolarTorus, no hole (16 x 18 x 8)
     params: params_ShearAlfven.py
     command: "mpirun -n 4 python params_ShearAlfven.py --tend 1200 --sim-folder polar --polar --num-elements 16 18 8"
-    pproc: "python pproc_ShearAlfven.py --sim-folder polar --tend 1200 --polar --num-elements 16 18 8 --max-frames 150"
+    pproc: "python pproc_ShearAlfven.py --sim-folder polar --tend 1200 --polar --num-elements 16 18 8 --max-frames 500"
     videos:
       - runs/polar/videos/u_r_3d.mp4
       - runs/polar/videos/u_r_3d_cut.mp4

@@ -44,6 +44,7 @@ figures and videos of the runs (from `<run>/results/`) into `~/struphy-studies-m
 
 ## Reproducing a study
 
-The study page gives the Struphy commit (`pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>"`)
-and, for each run, the params file and the commands. Struphy records its version and commit in the
+The study page gives the Struphy commit (`pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>"`),
+with its tags if it has any (looked up in the Struphy repository at each build; the site is rebuilt weekly, so a tag
+added later shows up too), and, for each run, the params file and the commands. Struphy records its version and commit in the
 `run_metadata.json` of each run.
