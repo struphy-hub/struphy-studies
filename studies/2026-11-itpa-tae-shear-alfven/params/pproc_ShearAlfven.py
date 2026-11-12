@@ -14,7 +14,7 @@ and with the ideal MHD frequency of the ITPA benchmark (Koenies et al. 2018) and
 Unless ``--no-frames``, the frames of three videos of the radial velocity u_r over the run (at most ``--max-frames``
 saved time steps) are written into ``<path_out>/results/frames/``: ``u_r_rz`` (the poloidal plane), ``u_r_3d_cut``
 (3D, the camera on the poloidal cross-section of the cutaway) and ``u_r_3d`` (3D, the whole torus with the
-cutaway), see ``struphy.post_processing.frames``. Make a video e.g. with
+cutaway); the 3D views show the flux surface r = 0.5 of the gap, see ``struphy.post_processing.frames``. Make a video e.g. with
 ``ffmpeg -framerate 25 -i frame_%04d.png -pix_fmt yuv420p u_r_rz.mp4`` in a frames folder.
 
 With ``--save-results`` (passed by ``submit_ShearAlfven_scaling.py`` after each profiling run, ``--setup profiling``)
@@ -23,10 +23,8 @@ the scope-profiler HTML report and a summary of the cost per step and of the sol
 """
 
 import argparse
-import json
 import os
-import re
-import statistics
+import shutil
 import sys
 from pathlib import Path
 
@@ -34,8 +32,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from struphy import Output
-from struphy.post_processing.frames import write_videos
-from struphy.post_processing.plot_3d import plot_field_3d
+from struphy.post_processing.frames import write_3d_frames, write_videos
+from struphy.post_processing.profiling import save_profiling_results
 from struphy.post_processing.slices import plot_physical_slices
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -59,12 +57,23 @@ ENERGIES = ("en_U", "en_B")  # energy scalars shown next to en_tot
 # between the poloidal mode numbers M and M + 1, see the description of the params file
 M_TAE = 10
 N_LOGICAL = -1
+# minor radius of the gap (q = 1.75), the flux surface shown in the 3D views of the videos
+R_GAP = 0.5
 # relative tolerance of the measured TAE frequency: the formula gives the center of the gap, whose relative width
 # is about the inverse aspect ratio r_c/R0 = 0.05 at the gap
 TAE_RTOL = 0.1
 # ideal MHD frequency of the TAE in the ITPA benchmark (Koenies et al. 2018): 4.01e5 rad/s (CAS3D) and 4.13e5 rad/s
 # (GYGLES), the mean of the two, asserted with the same relative tolerance
 OMEGA_ITPA = 4.07e5
+
+
+def radial_range(domain):
+    """The minor radius (r_min, r_max) at eta1 = 0 and 1: the hole and the wall of the HollowTorus, or (0, a) for the
+    IGAPolarTorus of --polar (no hole)."""
+    params = domain.params
+    if "a1" in params:
+        return params["a1"], params["a2"]
+    return 0.0, params["a"]
 
 
 def tae_frequency(run, basis):
@@ -81,7 +90,8 @@ def tae_frequency(run, basis):
     n = abs(N_LOGICAL) * params["tor_period"]
     q_c = (2 * M_TAE + 1) / (2 * n)
     r_c = a * np.sqrt((q_c - q0) / (q1 - q0))
-    eta1 = np.array([(r_c - params["a1"]) / (params["a2"] - params["a1"])])
+    r_min, r_max = radial_range(run.domain)
+    eta1 = np.array([(r_c - r_min) / (r_max - r_min)])
     eta2, eta3 = np.linspace(0, 1, 64, endpoint=False), np.linspace(0, 1, 8, endpoint=False)
     abs_b = np.mean(equil.absB0(eta1, eta2, eta3))
     density = np.mean(equil.n0(eta1, eta2, eta3))
@@ -108,8 +118,8 @@ def tae_frequency(run, basis):
 
 
 def minor_radius(run):
-    """The minor radius of the HollowTorus as a function of eta1."""
-    a1, a2 = run.domain.params["a1"], run.domain.params["a2"]
+    """The minor radius as a function of eta1 (HollowTorus or, with --polar, IGAPolarTorus)."""
+    a1, a2 = radial_range(run.domain)
     return lambda eta1: a1 + (a2 - a1) * eta1
 
 
@@ -121,76 +131,40 @@ def finish(figs, results_dir, save_figs):
             plt.close(fig)
 
 
-def solver_iterations(path_out):
-    """The iterations of the shear Alfven solve per step, logged by the run with ``--setup profiling``.
-
-    Read from the standard output of the run, ``<path_out>/struphy.out`` (written by the profiling driver), else from
-    the log file (``$STRUPHY_LOG_FILE`` or ``<path_out>/struphy.log``) and its rotated backups, oldest first; the log
-    keeps only the last few 10 kB, so it may miss the first steps. An empty list if none of them exists.
-    """
-    pattern = re.compile(r"Iterations for ShearAlfven\w*: (\d+)")
-    stdout_file = os.path.join(path_out, "struphy.out")
-    if os.path.isfile(stdout_file):
-        files = [stdout_file]
-    else:
-        log_file = os.environ.get("STRUPHY_LOG_FILE") or os.path.join(path_out, "struphy.log")
-        # the rotated backups (backupCount of the struphy logger), oldest first
-        files = [f"{log_file}.{i}" for i in range(3, 0, -1)] + [log_file]
-    iterations = []
-    for file in files:
-        if os.path.isfile(file):
-            with open(file, encoding="utf-8") as f:
-                iterations += [int(m.group(1)) for m in pattern.finditer(f.read())]
-    return iterations
-
-
-def save_profiling_results(path_out):
-    """Write the scope-profiler HTML report and a summary of the cost per step into ``<path_out>/results``."""
-    from scope_profiler import create_html_report
-
-    out = Output(path_out)
-    results = out.profile.results  # the scope-profiler results of the run, all ranks merged
-    results_dir = Path(out.path_out) / "results"
-    results_dir.mkdir(exist_ok=True)
-
-    # the full scope-profiler report: call tree, charts, per-rank statistics
-    create_html_report(results, results_dir / "report.html")
-
-    # cost per step from the `model.integrate` region (the maximum over the ranks per step); the first step includes
-    # one-time work, so the median leaves it out
-    integrate = results["model.integrate"]
-    per_rank = [integrate[rank].durations for rank in integrate.ranks]
-    n_calls = min(len(durations) for durations in per_rank)
-    step_times = np.max([durations[:n_calls] for durations in per_rank], axis=0)
-    step_median = float(statistics.median(step_times[1:] if len(step_times) > 1 else step_times))
-    iterations = solver_iterations(out.path_out)
-    summary = {
-        "mpi_ranks": results.num_ranks,
+def save_results(path_out):
+    """Write the scope-profiler report and the summary of the cost per step and of the solver iterations into
+    ``<path_out>/results`` (:func:`struphy.post_processing.profiling.save_profiling_results`)."""
+    info = {
         "num_elements": list(args.num_elements),
         "degree": list(args.degree),
         "b_space": args.b_space,
         "projected": args.projected,
+        "polar": args.polar,
+        "a1": None if args.polar else args.a1,
         "precond": args.precond,
-        "steps": len(step_times),
         "dt": args.dt,
-        "step_times": step_times.tolist(),
-        "step_median": step_median,
-        "solver_iterations": iterations,
-        "solver_iterations_mean": float(np.mean(iterations)) if iterations else None,
     }
-    (results_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-
-    iters = f", {summary['solver_iterations_mean']:.1f} solver iterations per step" if iterations else ""
-    print(f"\nstep: median {1e3 * step_median:.3f} ms (first step {1e3 * step_times[0]:.3f} ms){iters}")
-    results.print_summary(include=["^prop: "], sort="total", title="propagators")
+    summary = save_profiling_results(path_out, info=info)
+    step_times = summary["step_times"]
+    iterations = ", ".join(
+        f"{mean:.1f} iterations per step ({name})" for name, mean in summary["solver_iterations_mean"].items()
+    )
+    print(
+        f"\nstep: median {1e3 * summary['step_median']:.3f} ms (first step {1e3 * step_times[0]:.3f} ms)"
+        + (f"; {iterations}" if iterations else "")
+    )
+    Output(path_out).profile.results.print_summary(include=["^prop: "], sort="total", title="propagators")
 
 
 def main(path_out=DEFAULT_OUTPUT, save_figs=True, frames=True, max_frames=500):
     run = Output(path_out)
     snapshots = run.standard_snapshots()
-    # VTK files (for the 3D views) of the standard snapshots only
+    # VTK files of the standard snapshots only (e.g. for ParaView)
     run.pproc(create_vtk=True, physical=True, vtk_steps=snapshots)
     times = [float(run.time[n]) for n in snapshots]
+    # eta1 of the flux surface r = 0.5 of the gap, shown in the 3D views
+    r_min, r_max = radial_range(run.domain)
+    eta1_gap = (R_GAP - r_min) / (r_max - r_min)
 
     # The profiling packaging picks these files up from here and uploads them with the run.
     results_dir = os.path.join(run.path_out, "results")
@@ -233,32 +207,33 @@ def main(path_out=DEFAULT_OUTPUT, save_figs=True, frames=True, max_frames=500):
             figs[f"{key}_harmonics_t{t:.6g}"] = result.fig
         finish(figs, results_dir, save_figs)
 
-        # 3D views of the scalar fields and of the first (radial eta1, in a logical basis) components, saved as
-        # <field>_3d_t<time>.png and <field>1_3d_t<time>.png
-        for key, _, species, variable, _ in FIELDS:
-            basis = bases[f"{species}/{variable}"]
-            if basis is None:
-                filename = os.path.join(results_dir, f"{key}_3d_t{t:.6g}.png")
-                plot_field_3d(run.path_out, variable, species=species, snapshot=n, filename=filename)
-            elif basis in (run.field_form(f"{species}/{variable}"), "physical"):
-                # the VTK files hold the components in the FEEC form and the Cartesian ones
-                filename = os.path.join(results_dir, f"{key}1_3d_t{t:.6g}.png")
-                plot_field_3d(
-                    run.path_out,
-                    variable,
-                    species=species,
-                    snapshot=n,
-                    component=0,
-                    physical=basis == "physical",
-                    filename=filename,
-                )
-            else:
-                print(f"No 3D view of {species}/{variable}: its basis {basis!r} is not in the VTK files.")
+    # 3D views (cutaway, semi-transparent boundary, the flux surface r = 0.5 of the gap) of the scalar fields and of
+    # the first (radial eta1, in a logical basis) components at the standard snapshots, as the 3D frames of the videos
+    # (one color scale over the snapshots), saved as <field>_3d_t<time>.png and <field>1_3d_t<time>.png
+    for key, _, species, variable, _ in FIELDS:
+        name, basis = f"{species}/{variable}", bases[f"{species}/{variable}"]
+        folder = os.path.join(results_dir, f"{key}_3d_snapshots")
+        views = write_3d_frames(
+            run,
+            name,
+            folder,
+            component=None if basis is None else 0,
+            basis=basis,
+            steps=snapshots,
+            view="cut",
+            surface=eta1_gap,
+        )
+        # the frames are written on rank 0 only (an empty list on the other ranks, which must not touch the folder)
+        if views:
+            for view, t in zip(views, times):
+                shutil.move(view, os.path.join(results_dir, f"{key}{'' if basis is None else '1'}_3d_t{t:.6g}.png"))
+            shutil.rmtree(folder, ignore_errors=True)
 
     if frames:
         # frames of videos of the radial velocity u_r (the first component in the normalized basis, radial for the
-        # circular flux surfaces of the HollowTorus): the poloidal plane and two 3D views, at most max_frames saved
-        # time steps, in <path_out>/results/frames/u_r_rz, u_r_3d_cut and u_r_3d (frame_*.png)
+        # circular flux surfaces): the poloidal plane and two 3D views, at most max_frames saved
+        # time steps, in <path_out>/results/frames/u_r_rz, u_r_3d_cut and u_r_3d (frame_*.png); the 3D views show the
+        # flux surface r = 0.5 of the gap (not the one through the largest value, which can be a continuum oscillation)
         videos = write_videos(
             run,
             "mhd/velocity",
@@ -268,6 +243,7 @@ def main(path_out=DEFAULT_OUTPUT, save_figs=True, frames=True, max_frames=500):
             prefix="u_r",
             label="radial velocity u_r",
             max_frames=max_frames,
+            options_3d={"surface": eta1_gap},
         )
         for video, files in videos.items():
             if files:  # (empty on the ranks other than 0)
@@ -311,7 +287,7 @@ if __name__ == "__main__":
     if pproc_args.save_results and args.setup != "profiling":
         pproc_parser.error("--save-results needs the run's --setup profiling")
     if pproc_args.save_results:
-        save_profiling_results(pproc_args.path_out)
+        save_results(pproc_args.path_out)
     else:
         main(
             pproc_args.path_out,
