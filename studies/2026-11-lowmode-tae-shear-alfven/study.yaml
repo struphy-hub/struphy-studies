@@ -2,7 +2,7 @@
 title: "Low-mode TAE with ShearAlfven: convergence and the mode structure near the axis"
 date: 2026-11-11
 # drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
-draft: true
+draft: false
 struphy:
   # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
   commit: 29559dcaf4b4cf9436b33eb32f1fb5f86c77ef22
