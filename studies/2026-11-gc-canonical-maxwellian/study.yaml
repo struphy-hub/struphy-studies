@@ -1,0 +1,88 @@
+# Study of struphy-studies, see the README of the repository for the fields.
+title: "Canonical Maxwellian equilibrium of guiding centers in a tokamak"
+date: 2026-11-14
+# drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
+draft: false
+struphy:
+  # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
+  commit: 82f76f386
+  version: "3.6.1"
+# one sentence, shown on the landing page
+summary: A canonical Maxwellian of guiding centers in an ad hoc tokamak stays stationary up to t = 100 (about 20 transit times of thermal ions) to the level of the Monte-Carlo noise, with drifts through the magnetic axis; first run of a planned parameter study.
+thumbnail_caption: "Run base: guiding-center distribution in the poloidal plane, in (r, v_par) and in (v_par, mu) at t = 0 and t = 100 and the change f(100) - f(0)"
+description: |
+  **Question.** Does a canonical Maxwellian, a function of the constants of motion of guiding-center orbits, stay
+  stationary over long times in a tokamak with the guiding-center pushers of Struphy (model `GuidingCenter`, discrete
+  gradients) and C1 polar splines at the magnetic axis? This page has the base run; runs with other shifts of psi_c
+  (none, B0), a gyro-Maxwellian control, other epsilon (0.02, 0.1) and other pushers (discrete gradient 2nd order,
+  explicit RK4) are planned (`run_case.sh` takes their flags).
+
+  **Setup.** Example `GuidingCenter/tokamak_equilibrium` (`params_tokamak_equilibrium.py`). Guiding centers
+  f(X, v_par, mu, t) in a static field, with parallel streaming, the mirror force and the grad-B and curvature drifts
+  of order epsilon = 0.05 (normalized cyclotron period). Full torus without hole (`IGAPolarTorus`, a = 1, R0 = 3, C1
+  polar splines), ad hoc tokamak equilibrium (`AdhocTorus`, circular flux surfaces, B0 = 1 on axis, q = 1.71 + 0.16
+  r²). The canonical Maxwellian (`CanonicalMaxwellian2D`)
+  f0 = n(psi_c) / (2 pi)^(3/2) / vth(psi_c)³ exp(-(v_par²/2 + mu |B0|) / vth(psi_c)²) has the profiles
+  n = (1 - s)² and vth = 0.15 + 0.10 (1 - s) in the normalized canonical toroidal momentum s(psi_c), with
+  psi_c = P_phi minus a shift of the order of the orbit width, here with the field max |B0| on the surface psi =
+  P_phi (`shift="Bmax"`), which keeps psi_c a constant of motion, so f0 is an exact equilibrium (Jeans' theorem).
+  Grid 16 x 48 x 48, cubic splines, 25 markers per cell (921,600 markers, drawn uniformly on the disc, weights
+  f0 / s0), dt = 0.2, T = 100 (500 steps), both pushers discrete gradient 1st order, markers leaving the plasma at
+  r = a are removed. 4 MPI ranks, 38 min. The Struphy commit is on the branch of struphy-hub/struphy#949 (the
+  `--shift` flag and the pictures of this page).
+
+  **Analysis** (`pproc_tokamak_equilibrium.py`). The markers are binned every 5 steps in r = eta1 a, in the
+  poloidal plane (eta1, eta2), in v_par, mu, (r, v_par) and (v_par, mu) (density, divided by the Jacobian). The
+  change f(t) - f(0) uses the same markers with fixed weights, so it contains only the noise of the marker motion,
+  not that of the initial loading. Trapped-passing boundaries at the outboard midplane: v_par² = 2 mu (B_max -
+  B_min) on the flux surface (in (r, v_par) for mu B_min = vth²). Color scales are clipped at the 99.5th
+  percentile, because the division by the Jacobian makes single bins at the axis very noisy.
+findings: |
+  | slice | relative L2 deviation from t = 0, median t = 5 - 25 | median t = 75 - 100 |
+  |---|---|---|
+  | r | 0.017 | 0.017 |
+  | v_par | 0.015 | 0.023 |
+  | mu | 0.006 | 0.009 |
+  | poloidal plane (r, theta) | 0.16 | 0.16 |
+  | (r, v_par) | 0.082 | 0.118 |
+  | (v_par, mu) | 0.063 | 0.082 |
+
+  1. **The distribution stays stationary to the level of the noise.** f at t = 100 cannot be told from f at t = 0
+     in any of the views; f(t) - f(0) is noise without structure (no shift across the trapped-passing boundary, no
+     radial transport), largest near the axis where the bins are small.
+  2. **The deviation has no systematic drift in r and in the poloidal plane** (1.7% and 16%, the latter for bins
+     with few markers). In the slices with v_par it grows slowly, by 30 - 50% from the first to the last quarter
+     of the run (e.g. 1.5% to 2.3% in v_par). Whether this is the noise of the marker motion or a slow relaxation
+     is open; the planned runs (gyro-Maxwellian control, shift = B0, other epsilon and pushers) will tell.
+  3. **Spikes of the deviation** (at t = 2, 58, 72, 97, up to 100% in the 2D slices) come from single markers close
+     to the magnetic axis, whose weight is divided by the small Jacobian of their bin; they are an artifact of the
+     binning, visible as single bright bins in the pictures.
+  4. **Losses and energy.** 71,500 markers (7.8%) leave the plasma at r = a up to t = 100, but they carry only
+     1.7e-4 of the mass (the density vanishes at the edge). The total energy drifts by -6.4e-4, mostly through
+     these losses.
+
+  ![Run base: the binned distribution in the poloidal plane (top), in (r, v_par) (middle) and in (v_par, mu) (bottom), at t = 0 (left), t = 100 (middle) and the change f(100) - f(0) (right, red/blue), normalized to the 99.5th percentile of f(0); dashed: trapped-passing boundaries at the outboard midplane (trapped inside in (r, v_par), above the cones in (v_par, mu)).](media:runs/base/figures/distribution.png)
+
+  ![Run base: relative L2 deviation of the binned distributions from t = 0, one color per slice.](media:runs/base/figures/deviation.png)
+media:
+  # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
+  share: https://datashare.mpcdf.mpg.de/s/TN7EQgKk5KEGMEp
+figures: []
+runs:
+  - name: base
+    description: canonical Maxwellian, shift Bmax, epsilon = 0.05, discrete gradient 1st order, grid 16 x 48 x 48, 25 markers per cell, T = 100
+    params: params_tokamak_equilibrium.py
+    command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder base --save-step 5"  # or: bash run_case.sh base
+    pproc: "python pproc_tokamak_equilibrium.py base --save-step 5 --video"
+    videos:
+      - runs/base/videos/distribution.mp4
+    figures:
+      - runs/base/figures/binning_e1_density.png
+      - runs/base/figures/binning_e1_e2_density.png
+      - runs/base/figures/binning_e1_v1_density.png
+      - runs/base/figures/binning_v1_density.png
+      - runs/base/figures/binning_v1_v2_density.png
+      - runs/base/figures/binning_v2_density.png
+      - runs/base/figures/deviation.png
+      - runs/base/figures/distribution.png
+      - runs/base/figures/scalars.png
