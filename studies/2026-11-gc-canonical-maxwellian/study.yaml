@@ -2,7 +2,7 @@
 title: "Canonical Maxwellian equilibrium of guiding centers in a tokamak"
 date: 2026-11-14
 # drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
-draft: true
+draft: false
 struphy:
   # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
   commit: 82f76f386
@@ -66,7 +66,7 @@ findings: |
   ![Run base: relative L2 deviation of the binned distributions from t = 0, one color per slice.](media:runs/base/figures/deviation.png)
 media:
   # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
-  share: null
+  share: https://datashare.mpcdf.mpg.de/s/TN7EQgKk5KEGMEp
 figures: []
 runs:
   - name: base
