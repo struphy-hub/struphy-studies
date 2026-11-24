@@ -1,0 +1,242 @@
+# Study of struphy-studies, see the README of the repository for the fields.
+title: "Spurious modes of the discrete Lie derivative in linear MHD"
+date: 2026-11-20
+# drafts are not published on the site (preview them with: python tools/build_site.py --drafts)
+draft: false
+struphy:
+  # the Struphy commit the runs were made with (pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>")
+  commit: 1f5424ddd54e262afb6e997cccae3805eb6a4992
+  version: "3.6.2"
+# caption of the thumbnail on the landing page
+thumbnail_caption: "Kink time runs at dt = 0.5 (q model blue, variational orange): kinetic energy and its growth rate; at t = 250 both are taken over by a static grid-scale mode"
+# one sentence, shown on the landing page
+summary: Both linear MHD models with the velocity in H(div) have a static grid-scale instability at the shortest axial wave, because their discrete Lie derivative curl P(B0,h x u) does not bend the alternating wave along B0 (a spurious kernel, like a failed inf-sup condition), while parallel flows at the grid scale get a spurious magnetic stiffness; both defects come from the velocity space, not from the projection.
+description: |
+  **Question.** Long time runs of the kink in the study
+  [Linear MHD on polar splines: q model vs. variational p model](https://struphy-hub.github.io/struphy-studies/studies/2026-11-linear-q-vs-variational-polar/) are taken
+  over by a mode that does not exist in ideal MHD: static, at the grid scale, the same in both models. Where does it
+  come from, and what does it say about the discretization of the magnetic coupling?
+
+  In linear ideal MHD the velocity bends the field lines through the Lie derivative of the equilibrium field,
+  ∂t b = -L_u B0 with L_u B0 = curl(B0 x u) (Cartan: the contraction of the 2-form B0 with u is the 1-form B0 x u).
+  Both Struphy models with the velocity in H(div) (V2) discretize it as the **discrete Lie derivative**
+
+  L^h_u B0,h = curl P(B0,h x u),
+
+  where B0 x u (a 1-form) is projected into V1 by P before the exact discrete curl:
+  - **q model**, `LinearMHDWithQ`: P = Pi^1 (commuting projector), analytic B0 (curl T2 u);
+  - **variational model**, `VariationalLinearMHD` with `transport_projection="L2"` (struphy#950): P = L2 projection,
+    B0,h = Pi^2 B0 (`L2TransportOperator`). The L2 projection is needed there: its orthogonality gives a second-order
+    energy consistent with the weak-curl current.
+
+  The magnetic force on the velocity is the adjoint of this operator, so whatever velocity it does not bend feels no
+  magnetic restoring force.
+
+  **Setup.** As in the q-vs-variational study (`cases.py`): screw pinch (`ScrewPinch`, a = 1, B0 = 1, uniform
+  density, length 2 pi R0, pressure from the force balance plus the offset p0 = 0.1) on `IGAPolarCylinder` with C1
+  polar splines, degree 3, 16 x 12 x N3 elements (N3 = 12 unless stated), 4 MPI ranks. **Kink case**: q = 0.7 -> 1.3,
+  R0 = 3 (q = 1 at r = 0.71). Time runs: dt = 0.5, T = 400, smooth helical seed (m, n) = (1, -1), amplitude 1e-6. The
+  runs were made with the branch of struphy#951 (stacked on #950) before their merge; with the merge commit
+  recorded here, short reruns (10 time steps, the eigenvalues of the blocks (1, 6), the kernel tables) give
+  bit-identical results.
+
+  **Analysis.**
+  - *Time runs* (`params_linear.py`, figure `python compare_timerun.py`): kinetic energy en_U and its local growth
+    rate, with the eigenvalues of the one-step map of the block (1, -1).
+  - *Eigenvalues* (`eig_block.py`, `bash run_nyquist.sh`, figure `python compare_nyquist.py`): the one-step map at
+    dt = 0.5 restricted to one Fourier block (m, n), for N3 = 8 to 24, with the eigenvector.
+  - *Static checks of the operator* (no time stepping): for a velocity u in V2, the discrete bending
+    |curl P(B0,h x u)| / |u| (mass-matrix norms). `check_nyquist_kernel.py`: smooth waves (m, n) in one component of u
+    on the cylinder (`--geom polar`), a hollow cylinder without polar splines, a periodic slab with B0 = e_z, a polar
+    torus (`bash run_poltor.sh`, which also computes the eigenvalues of the poloidal and toroidal blocks).
+    `check_velocity_space.py`: the slab with u in H(div) or in H1vec. `check_kernel_K.py`: parallel flows.
+    `ratio_1d.py`: a 1D model of the axial direction. Commands in `run_checks.sh`; figures `python compare_lie.py`,
+    `python splines_parity.py`.
+  - *Spectrum of a homogeneous slab* (`eig_slab.py`, in `run_checks.sh`, figure `python compare_slab.py`): the
+    one-step map of each Bloch block of a periodic slab with B0 = e_z, against the exact ideal-MHD branches.
+  - *A third coupling* (`bash run_cc.sh`): `LinearMHD` with the magnetic field in H(curl) (weak induction, model
+    "cc" of `cases.py`), slab spectra along and across B0 and the blocks of the kink and Suydam screw pinches.
+findings: |
+  | quantity | q model (Pi^1) | variational (L2) |
+  |---|---|---|
+  | kink time run, dt = 0.5: growth rate before / after t = 250 | 0.039 / 0.182 | 0.045 / 0.184 |
+  | static mode, block (1, N3/2): N3 = 8 / 12 / 16 / 24 | 0 / 0.182 / 0.251 / 0.315 | 0 / 0.184 / 0.253 / 0.318 |
+  | static mode, odd N3 = 11, 13 | none | none |
+  | discrete bending of the alternating axial wave (n = 6, N3 = 12), poloidal component of u | 1e-14 | 1e-14 |
+  | 1D bending ratio r of the shortest wave, N = 13 / 25 / 49 (even N: 0) | 0.23 / 0.12 / 0.06 | 0.48 / 0.27 / 0.14 |
+  | spurious bending s_h of a parallel flow, n = 1 / 3 / 6 (N3 = 12; c_s k = 0.17 / 0.50 / 1.0) | 6e-5 / 0.010 / 0.44 | 1e-5 / 4e-4 / 0.44 |
+  | slab, shortest axial wave: shear Alfven / fast frequency, N3 = 12 (exact 2.0 / 6.84) | 0 / 1.90 | 0 / 1.90 |
+  | slab, shortest axial wave: shear Alfven / fast frequency, N3 = 13 (exact 2.0 / 6.84) | 0.48 / 2.42 | 1.02 / 3.73 |
+
+  1. **The long time run is taken over by a static grid-scale mode.** Both kink runs at dt = 0.5 grow with the kink
+     eigenvalue (0.039 and 0.045 at this dt) up to t = 240. Then both are overtaken by a mode with growth rate 0.182
+     (q) and 0.184 (variational), grown from round-off. It has m = +-1 and n = 6, the shortest axial wave of 12 axial
+     elements. Physically this wave is strongly stable: its field-line bending at k_z = 2 is far larger than any
+     drive of this equilibrium.
+
+  ![Kink, time runs at dt = 0.5, T = 400, 16 x 12 x 12, helical seed (1, -1): left, the kinetic energy en_U; right, its local growth rate 0.5 d ln(en_U)/dt; blue: q model, orange: variational model (L2); dashed: kink eigenvalue of the one-step map at dt = 0.5, dotted: fastest oscillating growing pair of the block (1, -1). From t = 250 both runs grow with the static mode of the block (1, 6).](media:figures/timerun_kink.png)
+
+  2. **It is a real eigenvalue of the spatial discretization, at the alternating axial wave.** The block (1, N3/2)
+     has a real growing eigenvalue with exactly the growth rates of the time runs. It does not depend on dt (0.185
+     at dt = 0.125) nor on the radial resolution (identical with 32 radial elements), and it grows with the axial
+     resolution: 0.25 at N3 = 16, 0.31 at 24, none at N3 = 8. With an odd number of axial elements (11, 13) there is
+     no static mode. The mode is a smooth m = 1 shift of the cross-section whose sign alternates from one axial
+     element to the next: the in-plane velocity vanishes at the knots and the axial velocity half an element off them.
+     It exists in the stable screw pinch too (0.120 at N3 = 12).
+
+  ![Static mode of the shortest axial wave, kink case, dt = 0.5. Left: its growth rate against the number of axial elements N3 (block (1, N3 // 2)), q model (blue) and variational (orange); circles: even N3, crosses: odd N3 (no static mode), diamonds: 32 radial elements. Middle: N3 = 12, the axial velocity u_z in the plane z = 0 (q and variational, normalized) and the in-plane velocity of the q model half an element further in z. Right: the m = 1 harmonics against r, normalized; dotted: u_z at z = 0, solid: u_r half an element further.](media:figures/nyquist.png)
+
+  3. **Cause: a spurious kernel of the discrete Lie derivative.** For degree 3 the in-plane components of a
+     V2 velocity are quadratic splines along z, the in-plane components of a V1 field cubic. The alternating
+     quadratic wave (coefficients +1, -1, ...) vanishes at every knot and is odd about it; the alternating cubic wave
+     is even about every knot. Pi^1 interpolates at the knots and gets zero; the L2 projection integrates an odd
+     against an even function on each element and gets zero too. Any projection that is symmetric under the mirror
+     about a knot gives zero, so it is not a matter of the projector or of its accuracy. The in-plane velocity of
+     this wave then produces no magnetic perturbation: L^h_u B0,h = 0 while the exact L_u B0 is large. The magnetic
+     force is the adjoint, so the velocity also feels no magnetic restoring force, and the pressure gradient of the
+     equilibrium drives it. The discrete operator has a larger kernel than the continuous one.
+
+     Measured (left of the fourth figure, m = 1, N3 = 12): the poloidal component gives 2.18 at n = 1, 1.35 (Pi^1) /
+     2.27 (L2) at n = 5, then 1e-14 at n = 6, in both models; the radial component drops from 5.0 to 0.68 at n = 6
+     (kept only through the poloidal field); the axial component is unaffected (0.41 to 0.54). The same zero appears
+     on a hollow cylinder without polar splines (1e-14) and in a periodic slab with B0 = e_z, where both in-plane
+     components give zero: the polar splines play no role.
+
+  ![B-splines on a uniform grid: top, quadratic splines are centred at cell midpoints, cubic ones at knots; middle, the alternating wave (coefficients +1, -1, ...) with 8 cells: the quadratic one (blue) is zero at every knot and odd about it, the cubic one (orange) even about every knot; bottom, with an odd number of cells (7) there is no alternating wave and the shortest wave does not vanish at the knots (dots).](media:figures/splines_parity.png)
+
+  4. **A mesh-independent bending condition, of inf-sup type.** The scheme is free of grid-scale instabilities if
+     the discrete bending is never much smaller than the exact one: |L^h_u B0,h| >= c |L_u B0| for all discrete
+     velocities, with c independent of the mesh. Written with the discrete weak curl, this is an inf-sup condition
+     for the coupling form <B0,h x u, curl*_h c> between velocities u and magnetic test fields c, the analogue of the
+     LBB condition of Stokes with the roles exchanged (the alternating velocity plays the part of the checkerboard
+     pressure). In the 1D model of the axial direction the constant is c = 0 for even N and c ~ 1/N for odd N (L2:
+     about 7/N; Pi^1: about 3/N): an odd number of elements removes the kernel but the bending of the shortest wave
+     stays of order one instead of growing with N, so it does not satisfy the condition either. On the cylinder with
+     N3 = 13 the shortest wave keeps a reduced bending, and no static mode appears in this equilibrium.
+
+  ![Left: discrete bending |curl P(B0 x u)| / |u| of smooth velocity waves (m = 1, axial wave number n) in one H(div) component, kink screw pinch 16 x 12 x 12; solid: radial (u^1), dashed: poloidal (u^2), dotted: axial (u^3) flux; blue: Pi^1 (q model), orange: L2 (variational); the poloidal component drops to round-off at n = 6. Right: 1D model, ratio r = |d/dz P u_h| / |d/dz u_h| of the shortest wave against the number of cells N; lines: odd N (orange L2, blue Pi^1, dotted 7/N); crosses: even N (round-off).](media:figures/compare_coupling.png)
+
+  5. **It is the velocity space.** For B0 x u to be represented in V1 without loss, each of its components must have
+     the spline degrees of the matching V1 component. The periodic slab (B0 = e_z, 12 x 12 x 12, `check_velocity_space.py`)
+     shows the rule: with u in H(div) the in-plane components lose the alternating wave **along** B0 (k3 = 6, for every
+     k1, k2); with u in H1vec (all components cubic) the bending along B0 is exact up to k3 = 6, but the alternating
+     wave **across** B0 is lost (u2 at k1 = 6 and u1 at k2 = 6, for every k3), in both projections. H(curl) would lose
+     both. Only a velocity built from a V1 field, u = E x B0 / |B0|^2, gives the exact bending (in an aligned field).
+     The nonlinear variational models use H1vec velocities and the same kind of projection, so the zero across B0
+     should be there too (not checked).
+
+  6. **The kernel is necessary, not sufficient, for a growing mode.** The zero coupling also exists in the other
+     periodic directions: the axial flow u^3 at the alternating poloidal wave (m = 6 = N2/2, through B_theta: 4e-15)
+     and the poloidal flux at the alternating toroidal wave of a polar torus (`AdhocTorus`, 16 x 12 x 8, n = 4:
+     8e-15). The eigenvalues of these blocks have no static growing mode (cylinder (6, 0) and (6, -1); torus n = 4;
+     only the time-step-induced pairs of the q model at omega dt of about 2.6, and in the variational block (6, 0) a
+     weak pair of 0.003 at the level of the leak). Whether a kernel turns into an instability depends on the drives
+     that act on it.
+
+  7. **Without a drive the kernel pollutes the spectrum but does not grow: the homogeneous slab.** Periodic slab
+     1 x 1 x 2 pi R0 (R0 = 3), 8 x 8 x N3 elements, B0 = e_z, beta = 0.1: every block of wave numbers (n1, n2, n3) is
+     exactly invariant (7 x 7: three velocity, three field components, pressure), and its frequencies are those of the
+     one-step map at dt = 0.02 (`eig_slab.py`, figure `python compare_slab.py`), here for (1, 0, n3). For smooth axial
+     waves both models follow the exact shear Alfven, fast and slow branches (n3 <= 3: within 0.2 % with L2, 5 % with
+     Pi^1). At the alternating wave (N3 = 12, n3 = 6) both lose all the magnetic stiffness of the in-plane motion:
+     the shear Alfven and slow waves drop to omega = 0 (exact 2.0 and 0.56), and the fast wave falls to the pure sound
+     frequency c_s |k| = 1.90 (exact 6.84). All growth rates stay below 1e-12: with no current and no pressure gradient
+     nothing drives the kernel (finding 6), and the defect shows only as wrong eigenvalues that do not converge,
+     since they move with N3. The band next to it is degraded too, more with Pi^1: at n3 = 5 the shear Alfven wave is
+     at 1.41 (L2) and 0.84 (Pi^1) instead of 1.67, the fast wave at 5.66 and 3.68 instead of 6.75. With N3 = 13 there
+     is no zero, but the shortest wave (n3 = 6) still has the shear Alfven wave at 1.02 (L2) and 0.48 (Pi^1) and the
+     fast wave at 3.73 and 2.42, against 2.0 and 6.84: an odd number of elements removes the kernel, not the
+     pollution of the shortest waves (the 1D ratio of finding 4).
+
+  ![Homogeneous slab, B0 = e_z, 8 x 8 x N3, blocks (1, 0, n3): frequencies of the discrete modes against the axial wave number, variational (orange) and q model (blue); circles: shear Alfven (velocity mostly u2), triangles: fast and slow, crosses: spurious omega = 0; black: exact shear Alfven (solid), fast (dashed), slow (dotted); grey: pure sound c_s |k|. Left N3 = 12 (alternating wave at n3 = 6), right N3 = 13.](media:figures/slab_spectrum.png)
+
+  8. **Writing the coupling weakly moves the blind spot across B0: LinearMHD with B in H(curl).** In
+     `LinearMHD(b_space="Hcurl", projected=True)` (velocity in H(div), magnetic field a 1-form, energy-conserving
+     shear-Alfven step) the induction equation is weak, <d_t b, C> = -<(curl C) x B0, u> for all C in V1: B0 x u is
+     never projected into V1, it is tested against curl V1, a subspace of V2, whose in-plane components are quadratic
+     along z like those of u. Along z the parities match; across B0 the degree bookkeeping gives opposite parities
+     instead. Free boundary conditions (u.n = 0 weakly, as recommended for this model); `cases.py` model "cc",
+     commands in `run_cc.sh`.
+
+     | | B in H(curl) | q model | variational | exact |
+     |---|---|---|---|---|
+     | slab, alternating wave **along** B0, (1, 0, 6): shear Alfven / fast / slow | 2.00 / 6.84 / 0.56 | 0 / 1.90 / 0 | 0 / 1.90 / 0 | 2.0 / 6.84 / 0.56 |
+     | slab, alternating wave **across** B0, (4, 0, 1), N1 = 8 | 0 / 7.26 / 0 | 0.33 / 26.16 / 0.092 | 0.33 / 26.17 / 0.092 | 0.33 / 26.16 / 0.093 |
+     | kink, block (1, 6): static growth rate (dt = 0.5 and 0.25) | none (< 2e-11) | 0.182 | 0.184 | stable |
+     | kink, block (1, -1): kink growth rate (dt = 0.5) | 0.039 | 0.039 | 0.045 | unstable |
+     | kink, poloidal alternating blocks (6, 0), (6, -1) | none | none | none | stable |
+     | Suydam, (2, -1), dt = 0.25: 16 / 32 radial elements | 0.0016 / 0.0031 | 0.0086 / 0.0092* | 0.0109 / 0.0092* | unstable |
+     | Suydam, (6, 0), (6, -1), (6, -3), N2 = 12 (alternating) | none | (6, -3): none | | |
+     | Suydam, (6, -3) / (12, -6), N2 = 24 | 0.0020 / none | 0.0030 / | | (6, -3) unstable |
+
+     (* dt = 0.125.) In the slab the H(curl) coupling is the mirror image of the other two: exact at the alternating
+     wave along B0, while across B0 the shear Alfven and slow waves drop to zero and the fast wave to the sound
+     frequency c_s |k| = 7.26. In the screw pinch this blind spot gives no static growing mode in any block tried,
+     current- or pressure-driven, at N2 = 12 or 24: across B0 it removes magnetic compression and the (already small)
+     bending of poloidal grid-scale waves, not the dominant bending along B0. The physical modes are found (kink;
+     Suydam m = 6 at N2 = 24 within a factor 1.5 of the q model), but the Suydam mode (2, -1) converges much more
+     slowly in the radial resolution (from below: 0.0016, 0.0031 against 0.009), an error towards stability whose cause
+     is not identified. Like the q model it has growing pairs from the splitting at large omega dt (omega dt of about
+     2.6, gamma = 0.067 at dt = 0.5 and 0.037 at dt = 0.25 in block (1, 6), larger than the Suydam growth), and it is
+     not variational and has div b = 0 only weakly. No arrangement of the coupling removes the blind spot; this one
+     puts it where the screw pinch does not drive it.
+
+  ![Homogeneous slab, B0 = e_z, the three couplings: q model (blue), variational (orange), B in H(curl) with weak induction (green); circles: shear Alfven, triangles: fast and slow, crosses: spurious omega = 0; black: exact branches, grey: pure sound. Left: along B0, blocks (1, 0, n3) with N3 = 12; the H(curl) coupling is exact at the alternating wave n3 = 6. Right: across B0, blocks (n1, 0, 1) with N1 = 8 (log scale, omega = 0 at the bottom); only the H(curl) coupling loses the alternating wave n1 = 4.](media:figures/slab_spectrum_cc.png)
+
+  9. **The opposite defect: grid-scale parallel flows get a spurious stiffness.** The exact Lie derivative does not
+     bend flows along B0. Approximating the parallel flow z = cos(k z) B0 in V2 and applying the discrete operator
+     (`check_kernel_K.py`) gives the spurious bending s_h = |curl P(B0,h x z_h)| / |z_h|, the extra frequency the
+     scheme gives to a flow that should have none. In the aligned slab s_h = 0 exactly. In the sheared screw pinch
+     it is negligible for smooth flows (n <= 3: below 4e-4 with L2, 1e-2 with Pi^1, against c_s k = 0.17 to 0.50), but
+     at the alternating wave it is 0.44 in both models, of the size k B_theta (0.39 at r = 0.5) that the degrees
+     predict: the B_z u_theta term of B0 x u is lost, the B_theta u_z term kept, and their cancellation for a
+     parallel flow is broken. Against the sound frequency c_s k = 1.0 this allows the grid-scale slow waves to be
+     lifted by up to 20 % in omega^2 in this equilibrium (an upper bound from this trial flow; high poloidal beta);
+     the ratio scales as 2 / (gamma beta_theta), so at low beta they could run at poloidal Alfven instead of sound
+     frequencies. With N3 = 13 the shortest wave still gets 0.24 (L2) and 0.35 (Pi^1). The L2 transport is closer to
+     exact than Pi^1 for all smooth waves.
+
+  ![Spurious bending s_h of the parallel flow z = cos(k z) B0 against the axial wave number k, kink screw pinch; orange solid: variational (L2), blue dashed: q model (Pi^1); circles: N3 = 12, squares: N3 = 13; black: sound frequency c_s k, dotted: k B_theta (both at r = 0.5). In the aligned slab s_h = 0 for all k.](media:figures/compare_kernel_K.png)
+
+  10. **What a remedy has to satisfy.** Both defects sit at the grid scale along or across B0 and come from the
+     velocity space, not from the projection (the L2 projection, kept for the energy, already gives zero). A velocity
+     space for these models has to give, at the same time: a discrete bending comparable to the exact one for every
+     velocity (the inf-sup condition, finding 4), discrete parallel flows with no bending (finding 9), an exact
+     divergence in V3 for the compression, and the variational structure (energy conservation, weak-curl current).
+     For a sheared field no such space is known yet. An odd number of axial elements avoids the static mode in these
+     runs, but neither defect. Writing the coupling weakly with B in H(curl) (finding 8) moves the blind spot across
+     B0, where these equilibria do not drive it, but does not remove it.
+media:
+  # the public link (without password) of the media folder on MPCDF DataShare, set by: python tools/study.py link
+  share: https://datashare.mpcdf.mpg.de/s/LjxjgPMjZxRXiC6
+figures:
+  - path: figures/timerun_kink.png
+    caption: "Kink, time runs at dt = 0.5: kinetic energy and its local growth rate, q model (blue) and variational (orange), with the eigenvalues of the one-step map; both are taken over by the static mode of the block (1, 6) at t = 250."
+  - path: figures/nyquist.png
+    caption: "Static mode of the shortest axial wave: growth rate against the number of axial elements (even: circles, odd: crosses), the mode for 12 axial elements, and its radial profiles; q model (blue) and variational (orange)."
+  - path: figures/splines_parity.png
+    caption: "Quadratic and cubic B-splines, the alternating wave in both spaces (quadratic odd, cubic even about every knot), and the shortest wave for an odd number of cells."
+  - path: figures/compare_coupling.png
+    caption: "Discrete bending of smooth waves in each H(div) component on the kink screw pinch (Pi^1 blue, L2 orange), and the 1D bending ratio of the shortest wave against the number of cells (odd: lines, even: round-off)."
+  - path: figures/compare_kernel_K.png
+    caption: "Spurious bending of parallel flows against k, variational (orange) and q model (blue), 12 and 13 axial elements, with the sound frequency and k B_theta."
+  - path: figures/slab_spectrum.png
+    caption: "Homogeneous slab: discrete shear Alfven, fast and slow frequencies against the axial wave number, with the exact branches; at the alternating wave (12 axial elements) shear Alfven and slow drop to zero and the fast wave to the sound frequency; 13 elements: no zero, but the shortest wave is still far off."
+  - path: figures/slab_spectrum_cc.png
+    caption: "Homogeneous slab, three couplings (q model, variational, B in H(curl)): along B0 only the H(curl) coupling keeps the alternating wave, across B0 only it loses it."
+runs:
+  - name: q_kink_dt0.5
+    description: q model (LinearMHDWithQ, B in H(div)), kink case, dt = 0.5, T = 400, 16 x 12 x 12, velocity saved
+    params: params_linear.py
+    command: "mpirun -n 4 python params_linear.py --model q --case kink --dt 0.5 --tend 400 --save-velocity --sim-folder q_kink_dt0.5"
+    pproc: "python compare_timerun.py"
+    videos: []
+    figures: []
+
+  - name: var_kink_dt0.5
+    description: variational p model (VariationalLinearMHD, L2 transport), kink case, dt = 0.5, T = 400, 16 x 12 x 12, velocity saved
+    params: params_linear.py
+    command: "mpirun -n 4 python params_linear.py --model var --case kink --dt 0.5 --tend 400 --save-velocity --sim-folder var_kink_dt0.5"
+    pproc: "python compare_timerun.py"
+    videos: []
+    figures: []
