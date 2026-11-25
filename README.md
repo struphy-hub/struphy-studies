@@ -43,6 +43,23 @@ figures and videos of the runs (from `<run>/results/`) into `~/struphy-studies-m
 
 `python tools/study.py check --all` checks the media of all studies (done weekly by CI for the published ones).
 
+## Private studies
+
+To share studies with chosen collaborators before (or instead of) publishing them here, create a private repository
+from the template [struphy-studies-template](https://github.com/struphy-hub/struphy-studies-template). It has the same
+tools and study format; its site is not deployed but downloaded by the collaborators (CI artifact) or built locally.
+To publish a study from there, run in the private repository
+```bash
+python tools/study.py publish <slug> <path of a clone of this repository>
+```
+which copies the study folder here (with `draft: false`), and open a pull request. The tools of both repositories are
+the same; change them in the template first and copy them here.
+
+## Offline site
+
+`python tools/build_site.py --offline` builds the site into `site/` so that it opens from disk (`site/index.html`),
+without a server. The title and the text of the landing page are `site_name` in `mkdocs.yml` and `intro.md`.
+
 ## Reproducing a study
 
 The study page gives the Struphy commit (`pip install "struphy @ git+https://github.com/struphy-hub/struphy@<commit>"`),

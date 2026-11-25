@@ -1,6 +1,6 @@
 ---
 name: create-study
-description: Use when creating, extending or publishing a study in struphy-studies (a page of the public site with Struphy runs, their figures and videos, findings and the commands to reproduce them) - planning the runs, post-processing, comparison figures, tools/study.py create/link/check, study.yaml, the local preview and the media upload to MPCDF DataShare. Triggers on requests like "make a study out of these runs", "add the runs to the study", "draft the study page", "publish the study".
+description: Use when creating, extending, sharing or publishing a study in a Struphy studies repository (struphy-studies or a private copy of struphy-studies-template; a page with Struphy runs, their figures and videos, findings and the commands to reproduce them) - planning the runs, post-processing, comparison figures, tools/study.py create/link/check, study.yaml, the local preview and the media upload to MPCDF DataShare. Triggers on requests like "make a study out of these runs", "add the runs to the study", "draft the study page", "publish the study".
 ---
 
 # Creating a Struphy study
@@ -8,10 +8,15 @@ description: Use when creating, extending or publishing a study in struphy-studi
 A study is a folder `studies/<yyyy-mm>-<slug>/` with `study.yaml` (texts, runs, commands), `params/` (the parameter,
 post-processing and comparison scripts) and `thumbnail.png`. Figures and videos are **not in git**: they live in a
 media folder on MPCDF DataShare, shared with a public link, and the site embeds them from there. Read `README.md`
-first; `studies/2026-11-lowmode-tae-shear-alfven/` is a complete example.
+first; `studies/2026-11-lowmode-tae-shear-alfven/` of https://github.com/struphy-hub/struphy-studies is a complete
+example.
+
+This repository may be a **private** copy of struphy-studies-template: its site is not deployed but shared with the
+collaborators (CI artifact `studies-site`, or `python tools/build_site.py --drafts --offline`), and drafts are shown
+to them. Never copy its material into public places unless the user asks to publish (section 8).
 
 The same skill is in the struphy repository (`.claude/skills/create-study/SKILL.md`, beside the `profiling-case`
-skill); keep the two in sync.
+skill), in struphy-studies and in struphy-studies-template; keep them in sync.
 
 ## 1. Plan the study with the user
 
@@ -104,3 +109,16 @@ PR: `mkdocs build --strict` and the media check),
 python tools/build_site.py --drafts && mkdocs build --strict && python tools/study.py check <slug>
 ```
 and open a pull request into `main`. After the merge, the site is rebuilt.
+
+In a private copy, "publish" means: push to `main` (or merge the pull request) so that the collaborators get it, see
+the README, *Share the site with collaborators*.
+
+## 8. Publish a study of a private copy
+
+Only when the user asks. Clone the public repository (or the user's fork) next to this one and run
+```bash
+python tools/study.py publish <slug> ../struphy-studies
+```
+It checks the media and the TODOs, copies the study folder with `draft: false` and prints the next steps (branch,
+`build_site.py && mkdocs build --strict`, commit, pull request into `main` of struphy-studies). Before the pull
+request, go through `study.yaml` and `params/` with the user for unpublished material, local paths and names.

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Manage the studies of struphy-studies.
+"""Manage the studies of a Struphy studies repository (struphy-studies, or a copy of struphy-studies-template).
 
     python tools/study.py create <slug> --run NAME=PATH [--run NAME=PATH ...] [options]
         Create ``studies/<slug>/`` (study.yaml, params, thumbnail) from Struphy output folders, and the media folder
         ``<media-dir>/<slug>/`` (figures and videos of the runs) to be uploaded to MPCDF DataShare.
     python tools/study.py link <slug> <public link of the uploaded media folder>
         Store the link in study.yaml and check that all media are there (see ``check``).
-    python tools/study.py check [<slug> ... | --all]
+    python tools/study.py check [<slug> ... | --all | --published | --linked]
         Check that the media of the studies are reachable through their links, with the right content types
         (and range requests for videos, which browsers need for seeking).
+    python tools/study.py publish <slug> <clone of the public repository>
+        Copy a study (e.g. from a private copy of the template) into a clone of the public repository struphy-studies,
+        as a non-draft, to be opened there as a pull request.
 
 The media are not stored in git: they live in a folder on DataShare, shared with a public link (without password).
 The site embeds them from ``https://<host>/public.php/dav/files/<token>/<path>``.
@@ -22,6 +25,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -290,7 +294,7 @@ Next steps:
    remove the password, and copy the link.
 4. Run:   python tools/study.py link {slug} <copied link>
 5. Preview the site:   python tools/build_site.py --drafts && mkdocs serve
-6. Set draft: false and open a pull request.
+6. Set draft: false and open a pull request (see the README for sharing and publishing).
 """
     )
 
@@ -353,7 +357,9 @@ def check_study(slug: str, share: str | None = None, quiet: bool = False) -> int
     for problem in problems:
         print(f"{slug}: {problem}")
     if extra and not quiet:
-        print(f"{slug}: {len(extra)} files on the share that study.yaml does not use (fine, not shown), e.g. {extra[0]}")
+        print(
+            f"{slug}: {len(extra)} files on the share that study.yaml does not use (fine, not shown), e.g. {extra[0]}"
+        )
     if not problems:
         print(f"{slug}: all {len(expected)} media files OK.")
     return len(problems)
@@ -369,11 +375,17 @@ def link(args) -> None:
     print(f"Stored the link in studies/{args.slug}/study.yaml.")
 
 
+def all_slugs() -> list[str]:
+    return sorted(p.name for p in STUDIES.iterdir() if (p / "study.yaml").is_file()) if STUDIES.is_dir() else []
+
+
 def check(args) -> None:
-    if args.all or args.published:
-        slugs = sorted(p.name for p in STUDIES.iterdir() if (p / "study.yaml").is_file()) if STUDIES.is_dir() else []
+    if args.all or args.published or args.linked:
+        slugs = all_slugs()
         if args.published:
             slugs = [s for s in slugs if not load_study(s).get("draft")]
+        if args.linked:
+            slugs = [s for s in slugs if (load_study(s).get("media") or {}).get("share")]
         if not slugs:
             print("No studies to check.")
             return
@@ -383,6 +395,87 @@ def check(args) -> None:
         sys.exit("Give studies, --all or --published.")
     problems = sum(check_study(slug, quiet=True) for slug in slugs)
     sys.exit(1 if problems else 0)
+
+
+PUBLIC_REPO = "https://github.com/struphy-hub/struphy-studies"
+
+
+def publish(args) -> None:
+    """Copy a study into a clone of the public repository (as a non-draft) and print the next steps."""
+    study = load_study(args.slug)
+    target = Path(args.target).expanduser().resolve()
+    if target == ROOT:
+        sys.exit(
+            "The target is this repository; give a clone of the public repository (git clone " + PUBLIC_REPO + ")."
+        )
+    if not (target / "studies").is_dir() or not (target / "tools" / "study.py").is_file():
+        sys.exit(f"{target} is not a clone of a studies repository (no studies/ and tools/study.py).")
+    dst = target / "studies" / args.slug
+    if dst.exists() and not args.force:
+        sys.exit(f"{dst} exists (use --force to overwrite it, e.g. to publish an update of the study).")
+
+    # the published page embeds the media from the public share: they must be complete and reachable
+    if not (study.get("media") or {}).get("share"):
+        sys.exit(f"{args.slug} has no media link yet (python tools/study.py link {args.slug} <link>).")
+    if check_study(args.slug, quiet=True):
+        sys.exit("Fix the media first (see above): the published page shows them from the share.")
+    todos = [k for k in ("summary", "description", "findings") if "TODO" in str(study.get(k, ""))]
+    todos += [f"run {r.get('name')}" for r in study.get("runs") or [] if "TODO" in json.dumps(r)]
+    if todos:
+        sys.exit(f"{args.slug} still has TODOs in: {', '.join(todos)}.")
+    warnings = []
+    if not (study.get("struphy") or {}).get("commit"):
+        warnings.append("struphy.commit is not set: readers cannot install the Struphy version of the runs.")
+    differ = [
+        f.name
+        for f in (ROOT / "tools").glob("*.py")
+        if (target / "tools" / f.name).is_file() and (target / "tools" / f.name).read_bytes() != f.read_bytes()
+    ]
+    if differ:
+        warnings.append(
+            f"tools/{', tools/'.join(differ)} differ between the two repositories: check that the page builds in the "
+            "target (step 2 below)."
+        )
+
+    # only the files tracked in git (not local outputs, notes or caches lying in the study folder)
+    rel = study_dir(args.slug).relative_to(ROOT).as_posix()
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--", rel], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.split("\0")
+    tracked = [f for f in tracked if f]
+    if not any(f.endswith("/study.yaml") for f in tracked):
+        sys.exit(f"studies/{args.slug}/study.yaml is not committed: commit the study first (git add, git commit).")
+    untracked = sorted(
+        f.relative_to(ROOT).as_posix()
+        for f in study_dir(args.slug).rglob("*")
+        if f.is_file() and f.relative_to(ROOT).as_posix() not in tracked
+    )
+    if untracked:
+        warnings.append("not copied (not tracked in git): " + ", ".join(untracked))
+
+    shutil.rmtree(dst, ignore_errors=True)
+    for f in tracked:
+        (target / f).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / f, target / f)
+    path = dst / "study.yaml"
+    path.write_text(re.sub(r"(?m)^draft:.*$", "draft: false", path.read_text(), count=1))
+
+    for w in warnings:
+        print(f"warning: {w}")
+    print(
+        f"""
+Copied studies/{args.slug}/ to {dst} (with draft: false).
+Everything in this folder becomes public: check study.yaml and params/ for unpublished material, private paths and
+names. The history of this repository stays private. The media stay in the same DataShare folder (already public).
+
+Next steps, in {target}:
+1. git switch -c study-{args.slug}
+2. python tools/build_site.py && mkdocs build --strict && python tools/study.py check {args.slug}
+   (preview: mkdocs serve)
+3. git add studies/{args.slug} && git commit -m "Study {args.slug}" && git push -u origin study-{args.slug}
+4. Open a pull request into main of the public repository (from a fork if you cannot push there).
+"""
+    )
 
 
 def thumbnail(args) -> None:
@@ -423,7 +516,14 @@ def main(argv=None) -> None:
     p.add_argument("slugs", nargs="*")
     p.add_argument("--all", action="store_true", help="all studies")
     p.add_argument("--published", action="store_true", help="all studies that are not drafts")
+    p.add_argument("--linked", action="store_true", help="all studies with a media link (drafts included)")
     p.set_defaults(func=check)
+
+    p = sub.add_parser("publish", help="copy a study into a clone of the public repository struphy-studies")
+    p.add_argument("slug")
+    p.add_argument("target", help=f"path of a clone of the public repository ({PUBLIC_REPO})")
+    p.add_argument("--force", action="store_true", help="overwrite the study in the target (update a published study)")
+    p.set_defaults(func=publish)
 
     args = parser.parse_args(argv)
     args.func(args)

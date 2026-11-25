@@ -4,15 +4,22 @@
     python tools/build_site.py [--drafts] [--local-media [MEDIA_DIR]]
     mkdocs serve      # preview (or: mkdocs build)
 
+    python tools/build_site.py --offline [--drafts]
+        # generates the pages and builds the site into site/, which opens from disk (site/index.html), without a server
+
 Drafts (``draft: true``) are only included with ``--drafts``. The media are embedded from the public share of each
 study (MPCDF DataShare), see tools/study.py. With ``--local-media``, studies without a share link show their media
 from the local media folder made by ``study.py create`` (a preview before the upload; such a build is never deployed).
+
+The name of the site and the repository linked from the pages are ``site_name`` and ``repo_url`` of mkdocs.yml; the
+text of the landing page (under the title) is ``intro.md``.
 """
 
 from __future__ import annotations
 
 import argparse
 import html
+import os
 import re
 import shutil
 import subprocess
@@ -26,7 +33,19 @@ from study import DEFAULT_MEDIA_DIR, STRUPHY_REPO, STUDIES, figure_path, media_u
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
-REPO = "https://github.com/struphy-hub/struphy-studies"
+
+
+def mkdocs_setting(key: str) -> str:
+    """A top-level string setting of mkdocs.yml (read as text: the file has tags that yaml.safe_load rejects)."""
+    match = re.search(rf"(?m)^{key}:\s*(.+?)\s*$", (ROOT / "mkdocs.yml").read_text())
+    if not match:
+        sys.exit(f"mkdocs.yml: no {key!r}")
+    return match.group(1).strip("\"'")
+
+
+REPO = mkdocs_setting("repo_url").rstrip("/")
+# offline build (--offline): pages are <slug>.html instead of <slug>/index.html, which changes relative media paths
+OFFLINE = False
 
 
 def short(commit: str | None) -> str:
@@ -92,9 +111,12 @@ def figure_html(url: str, text: str, description: str | None = None) -> str:
 LOCAL_SHARE = "local-preview"
 
 
-def url(share: str, path: str) -> str:
+def url(share: str, path: str, slug: str = "") -> str:
     """URL of the media file ``path`` of a study: on its public share, or (local preview) next to its page."""
-    return f"media/{path}" if share == LOCAL_SHARE else media_url(share, path)
+    if share != LOCAL_SHARE:
+        return media_url(share, path)
+    # page URL studies/<slug>/ (served) or studies/<slug>.html (offline); the media are in docs/studies/<slug>/media/
+    return f"{slug}/media/{path}" if OFFLINE else f"media/{path}"
 
 
 def resolve_media(text: str, share: str | None, slug: str = "") -> str:
@@ -107,7 +129,7 @@ def resolve_media(text: str, share: str | None, slug: str = "") -> str:
         return re.sub(r"!\[([^\]]*)\]\(media:[^)]*\)", r"*Figure: \1 (media not linked yet).*", text)
     text = re.sub(
         r"!\[([^\]]*)\]\(media:([^)\s]+)\)",
-        lambda m: "\n" + figure_html(url(share, m.group(2)), m.group(1)) + "\n",
+        lambda m: "\n" + figure_html(url(share, m.group(2), slug), m.group(1)) + "\n",
         text,
     )
     # Markdown links are resolved by MkDocs relative to the source file docs/studies/<slug>.md (not to the page URL
@@ -129,16 +151,16 @@ def video_html(url: str, name: str) -> str:
     )
 
 
-def gallery(run: dict, share: str | None) -> str:
+def gallery(run: dict, share: str | None, slug: str) -> str:
     if not share:
         return '!!! warning "Media not linked yet"\n    The media of this study are not available.\n'
     out = []
     if run.get("videos"):
-        videos = "\n".join(video_html(url(share, v), caption(v)) for v in run["videos"])
+        videos = "\n".join(video_html(url(share, v, slug), caption(v)) for v in run["videos"])
         out.append(f'<div class="study-videos">\n{videos}\n</div>\n')
     if run.get("figures"):
         figures = "\n".join(
-            figure_html(url(share, f), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
+            figure_html(url(share, f, slug), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
         )
         out.append(f'<div class="study-figures">\n{figures}\n</div>\n')
     return "\n".join(out)
@@ -171,7 +193,7 @@ def study_page(slug: str, study: dict) -> str:
     if study.get("figures") and share:
         figures = "\n".join(
             figure_html(
-                url(share, figure_path(f)),
+                url(share, figure_path(f), slug),
                 f["caption"] if isinstance(f, dict) and f.get("caption") else caption(figure_path(f)),
             )
             for f in study["figures"]
@@ -184,7 +206,7 @@ def study_page(slug: str, study: dict) -> str:
     for run in study.get("runs") or []:
         lines.append(f'<a id="run-{run["name"]}"></a>\n')
         lines.append(f'??? abstract "{run["name"]}: {run.get("description", "")}"\n')
-        lines.append(indent(gallery(run, share)) + "\n")
+        lines.append(indent(gallery(run, share, slug)) + "\n")
 
     # reproduce
     lines.append("## Reproduce\n")
@@ -229,13 +251,11 @@ def card(slug: str, study: dict) -> str:
 """
 
 
-INDEX = """# Struphy studies
+INDEX = """# {title}
 
 ![Struphy](assets/struphy_banner.png){{ .struphy-banner }}
 
-Numerical studies with [Struphy]({struphy}): convergence studies, verifications and comparisons of models and
-discretizations. Each study lists its runs with the parameter files and commands to reproduce them, and shows the
-figures and videos of every run.
+{intro}
 
 <div class="grid cards" markdown>
 
@@ -244,7 +264,14 @@ figures and videos of every run.
 """
 
 
+def intro() -> str:
+    """Text of the landing page under the title: intro.md of the repository (Markdown)."""
+    path = ROOT / "intro.md"
+    return path.read_text().strip() if path.is_file() else ""
+
+
 def main(argv=None) -> None:
+    global OFFLINE
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--drafts", action="store_true", help="include draft studies")
     parser.add_argument(
@@ -256,7 +283,14 @@ def main(argv=None) -> None:
         help="preview: show the media of the studies without a share link from their local media folder "
         f"<MEDIA_DIR>/<slug>/ (default {DEFAULT_MEDIA_DIR}), copied into docs/; never deploy such a build",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="also build the site (mkdocs build --strict) into site/ so that it opens from disk (site/index.html) "
+        "without a server, e.g. to download or send it as a zip",
+    )
     args = parser.parse_args(argv)
+    OFFLINE = args.offline
 
     shutil.rmtree(DOCS, ignore_errors=True)
     (DOCS / "studies").mkdir(parents=True)
@@ -285,8 +319,14 @@ def main(argv=None) -> None:
     # newest first
     studies.sort(key=lambda s: str(s[1].get("date", "")), reverse=True)
     cards = "\n".join(card(slug, study) for slug, study in studies) or "-   No studies yet.\n"
-    (DOCS / "index.md").write_text(INDEX.format(struphy=STRUPHY_REPO, cards=cards))
+    (DOCS / "index.md").write_text(INDEX.format(title=mkdocs_setting("site_name"), intro=intro(), cards=cards))
     print(f"Generated {len(studies)} studies into {DOCS.relative_to(ROOT)}/")
+
+    if args.offline:
+        # the offline plugin of Material (enabled by OFFLINE=true in mkdocs.yml) makes the pages work from disk
+        env = {**os.environ, "OFFLINE": "true"}
+        subprocess.run(["mkdocs", "build", "--strict"], cwd=ROOT, env=env, check=True)
+        print(f"Built the site into {(ROOT / 'site').relative_to(ROOT)}/: open site/index.html in a browser.")
 
 
 if __name__ == "__main__":
