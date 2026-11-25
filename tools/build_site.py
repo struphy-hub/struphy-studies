@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import yaml
@@ -83,6 +85,81 @@ def struphy_tags() -> dict[str, list[str]]:
         for names in _TAGS.values():
             names.sort()
     return _TAGS
+
+
+_TOKEN: str | None = None
+
+
+def github_token() -> str:
+    """Token for the GitHub API: $GITHUB_TOKEN or $GH_TOKEN (CI), else ``gh auth token``, else none (public only)."""
+    global _TOKEN
+    if _TOKEN is None:
+        _TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+        if not _TOKEN:
+            try:
+                out = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=20)
+                _TOKEN = out.stdout.strip() if out.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                _TOKEN = ""
+    return _TOKEN
+
+
+def github_api(path: str):
+    """GET ``https://api.github.com/<path>`` as JSON (None on any error)."""
+    headers = {"Accept": "application/vnd.github+json"}
+    if github_token():
+        headers["Authorization"] = f"Bearer {github_token()}"
+    try:
+        request = urllib.request.Request(f"https://api.github.com/{path}", headers=headers)
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read())
+    except Exception as e:  # noqa: BLE001 (no network, rate limit, private repository without token, ...)
+        print(f"warning: GitHub API {path}: {e}")
+        return None
+
+
+def study_author(slug: str) -> str | None:
+    """GitHub account of the author of a study: the one who opened the pull request that added its study.yaml, else
+    (added without a pull request) the GitHub account of the author of that commit; None if not found (e.g. not
+    committed yet, or offline)."""
+    try:
+        log = subprocess.run(
+            ["git", "log", "--diff-filter=A", "--format=%H", "--", f"studies/{slug}/study.yaml"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not log:
+        return None
+    if (
+        subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT, capture_output=True, text=True
+        ).stdout.strip()
+        == "true"
+    ):
+        print("warning: shallow git clone, the authors of the studies are not shown (fetch the full history)")
+        return None
+    sha = log[-1]  # the first commit that added the file
+    repo = REPO.removeprefix("https://github.com/")
+    pulls = github_api(f"repos/{repo}/commits/{sha}/pulls") or []
+    pulls = [p for p in pulls if p.get("merged_at")] or pulls
+    if pulls:
+        return min(pulls, key=lambda p: p["number"])["user"]["login"]
+    commit = github_api(f"repos/{repo}/commits/{sha}") or {}
+    return (commit.get("author") or {}).get("login")
+
+
+def author_html(login: str | None) -> str:
+    """The author line of a study page: avatar and link to the GitHub account."""
+    if not login:
+        return ""
+    return (
+        f'<p class="study-author"><img src="https://github.com/{login}.png?size=64" alt=""> '
+        f'<a href="https://github.com/{login}">@{login}</a></p>\n'
+    )
 
 
 def commit_link(commit: str | None) -> str:
@@ -176,7 +253,7 @@ def study_page(slug: str, study: dict) -> str:
     struphy = study.get("struphy") or {}
     commit = struphy.get("commit")
     title = study.get("title", slug)
-    lines = [f"# {title}\n"]
+    lines = [f"# {title}\n", author_html(study.get("_author"))]
     meta = [f":octicons-calendar-16: {study.get('date', '')}", f":octicons-git-commit-16: {commit_link(commit)}"]
     if struphy.get("version"):
         meta.append(f"Struphy {struphy['version']}")
@@ -241,11 +318,13 @@ def card(slug: str, study: dict) -> str:
     draft = " (draft)" if study.get("draft") else ""
     thumb_caption = study.get("thumbnail_caption")
     thumb_caption = f"\n\n    <small>*{thumb_caption}*</small>" if thumb_caption else ""
+    login = study.get("_author")
+    author = f":octicons-person-16: [@{login}](https://github.com/{login}) · " if login else ""
     return f"""-   [![{title}]({thumb})](studies/{slug}.md){thumb_caption}
 
     **[{title}](studies/{slug}.md)**{draft}
 
-    :octicons-calendar-16: {study.get("date", "")} · :octicons-git-commit-16: {commit_link(commit)}
+    {author}:octicons-calendar-16: {study.get("date", "")} · :octicons-git-commit-16: {commit_link(commit)}
 
     {study.get("summary", "")}
 """
@@ -311,6 +390,7 @@ def main(argv=None) -> None:
             shutil.copytree(local, DOCS / "studies" / slug / "media")
             study = {**study, "media": {**(study.get("media") or {}), "share": LOCAL_SHARE}}
             print(f"{slug}: media from {local} (local preview)")
+        study = {**study, "_author": study_author(slug)}
         studies.append((slug, study))
         (DOCS / "studies" / f"{slug}.md").write_text(study_page(slug, study))
         thumb = path.parent / "thumbnail.png"
