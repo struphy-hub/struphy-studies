@@ -8,44 +8,49 @@ struphy:
   commit: e0351a835
   version: "3.6.2"
 # one sentence, shown on the landing page
-summary: "A canonical Maxwellian of guiding centers in an ad hoc tokamak stays stationary up to t = 100 to the level of the Monte-Carlo noise with all three pushers, while a gyro-Maxwellian control and a canonical Maxwellian with the on-axis shift develop a parallel-velocity asymmetry from the radial shift of the passing orbits."
-thumbnail_caption: "Change f(100) - f(0) of the guiding-center distribution in (r, v_par): exact canonical Maxwellian (left), on-axis shift B0 (middle), gyro-Maxwellian control (right)"
+summary: 'A canonical Maxwellian of guiding centers in an ad hoc tokamak stays stationary up to $t = 100$ to the level of the Monte-Carlo noise with all three pushers, while a gyro-Maxwellian control and a canonical Maxwellian with the on-axis shift develop a parallel-velocity asymmetry from the radial shift of the passing orbits.'
+thumbnail_caption: 'Change $f(100) - f(0)$ of the guiding-center distribution in $(r, v_\parallel)$: exact canonical Maxwellian (left), on-axis shift $B_0$ (middle), gyro-Maxwellian control (right)'
 description: |
   **Question.** Does a canonical Maxwellian, a function of the constants of motion of guiding-center orbits, stay
   stationary over long times in a tokamak with the guiding-center pushers of Struphy (model `GuidingCenter`, discrete
-  gradients) and C1 polar splines at the magnetic axis, and can the diagnostics tell it from distributions that are
-  not stationary? Eight runs: the base run (exact equilibrium), the other shifts of psi_c (none: exact; B0: not
-  exact), a gyro-Maxwellian control with the same profiles in the position (not an equilibrium), epsilon = 0.02 and
-  0.1, and the pushers discrete gradient 2nd order and explicit RK4, each changing one thing against the base run.
+  gradients) and $C^1$ polar splines at the magnetic axis, and can the diagnostics tell it from distributions that are
+  not stationary? Eight runs: the base run (exact equilibrium), the other shifts of $\psi_c$ (none: exact; $B_0$: not
+  exact), a gyro-Maxwellian control with the same profiles in the position (not an equilibrium), $\epsilon = 0.02$ and
+  $0.1$, and the pushers discrete gradient 2nd order and explicit RK4, each changing one thing against the base run.
 
   **Setup.** Example `GuidingCenter/tokamak_equilibrium` (`params_tokamak_equilibrium.py`). Guiding centers
-  f(X, v_par, mu, t) in a static field, with parallel streaming, the mirror force and the grad-B and curvature drifts
-  of order epsilon = 0.05 (normalized cyclotron period). Full torus without hole (`IGAPolarTorus`, a = 1, R0 = 3, C1
-  polar splines), ad hoc tokamak equilibrium (`AdhocTorus`, circular flux surfaces, B0 = 1 on axis, q = 1.71 + 0.16
-  r²). The canonical Maxwellian (`CanonicalMaxwellian2D`)
-  f0 = n(psi_c) / (2 pi)^(3/2) / vth(psi_c)³ exp(-(v_par²/2 + mu |B0|) / vth(psi_c)²) has the profiles
-  n = (1 - s)² and vth = 0.15 + 0.10 (1 - s) in the normalized canonical toroidal momentum s(psi_c), with
-  psi_c = P_phi minus a shift of the order of the orbit width, here with the field max |B0| on the surface psi =
-  P_phi (`shift="Bmax"`), which keeps psi_c a constant of motion, so f0 is an exact equilibrium (Jeans' theorem).
-  Grid 16 x 48 x 48, cubic splines, 25 markers per cell (921,600 markers, drawn uniformly on the disc, weights
-  f0 / s0), dt = 0.2, T = 100 (500 steps), both pushers discrete gradient 1st order, markers leaving the plasma at
-  r = a are removed. All runs use the same markers (seed 1234): the runs with epsilon = 0.05 and the same pusher
-  differ only in the weights. 4 MPI ranks, 30 - 51 min per run. The runs were made with 82f76f386 of
+  $f(\mathbf X, v_\parallel, \mu, t)$ in a static field, with parallel streaming, the mirror force and the grad-B and
+  curvature drifts of order $\epsilon = 0.05$ (normalized cyclotron period). Full torus without hole (`IGAPolarTorus`,
+  $a = 1$, $R_0 = 3$, $C^1$ polar splines), ad hoc tokamak equilibrium (`AdhocTorus`, circular flux surfaces, $B_0 = 1$
+  on axis, $q = 1.71 + 0.16\, r^2$). The canonical Maxwellian (`CanonicalMaxwellian2D`)
+
+  $$
+  f_0 = \frac{n(\psi_c)}{(2\pi)^{3/2}\, v_{\mathrm{th}}(\psi_c)^3} \exp\left(-\frac{v_\parallel^2/2 + \mu \lvert \mathbf B_0 \rvert}{v_{\mathrm{th}}(\psi_c)^2}\right)
+  $$
+
+  has the profiles $n = (1 - s)^2$ and $v_{\mathrm{th}} = 0.15 + 0.10\,(1 - s)$ in the normalized canonical toroidal
+  momentum $s(\psi_c)$, with $\psi_c = P_\varphi$ minus a shift of the order of the orbit width, here with the field
+  $\max \lvert \mathbf B_0 \rvert$ on the surface $\psi = P_\varphi$ (`shift="Bmax"`), which keeps $\psi_c$ a constant of
+  motion, so $f_0$ is an exact equilibrium (Jeans' theorem).
+  Grid $16 \times 48 \times 48$, cubic splines, 25 markers per cell (921,600 markers, drawn uniformly on the disc, weights
+  $f_0 / s_0$), $\Delta t = 0.2$, $T = 100$ (500 steps), both pushers discrete gradient 1st order, markers leaving the
+  plasma at $r = a$ are removed. All runs use the same markers (seed 1234): the runs with $\epsilon = 0.05$ and the same
+  pusher differ only in the weights. 4 MPI ranks, 30 - 51 min per run. The runs were made with 82f76f386 of
   struphy-hub/struphy#949 (the `--shift` flag and the pictures of this page), merged as e0351a835 with the same code
   of the example, the particles and the post-processing; `run_case.sh` runs and post-processes
   one run, `compare.py` makes the comparison.
 
-  **Analysis** (`pproc_tokamak_equilibrium.py`). The markers are binned every 5 steps in r = eta1 a, in the
-  poloidal plane (eta1, eta2), in v_par, mu, (r, v_par) and (v_par, mu) (density, divided by the Jacobian). The
-  change f(t) - f(0) uses the same markers with fixed weights, so it contains only the noise of the marker motion,
-  not that of the initial loading. Trapped-passing boundaries at the outboard midplane: v_par² = 2 mu (B_max -
-  B_min) on the flux surface (in (r, v_par) for mu B_min = vth²). Color scales are clipped at the 99.5th
-  percentile, because the division by the Jacobian makes single bins at the axis very noisy. The runs are compared
-  by the relative L2 deviation from t = 0 of the distributions binned in r and in v_par (the 2D slices have too
-  few markers per bin), as medians over t = 5 - 25 and t = 75 - 100, since single markers next to the axis cause
-  spikes.
+  **Analysis** (`pproc_tokamak_equilibrium.py`). The markers are binned every 5 steps in $r = \eta_1 a$, in the
+  poloidal plane $(\eta_1, \eta_2)$, in $v_\parallel$, $\mu$, $(r, v_\parallel)$ and $(v_\parallel, \mu)$ (density,
+  divided by the Jacobian). The change $f(t) - f(0)$ uses the same markers with fixed weights, so it contains only the
+  noise of the marker motion, not that of the initial loading. Trapped-passing boundaries at the outboard midplane:
+  $v_\parallel^2 = 2 \mu (B_{\max} - B_{\min})$ on the flux surface (in $(r, v_\parallel)$ for
+  $\mu B_{\min} = v_{\mathrm{th}}^2$). Color scales are clipped at the 99.5th percentile, because the division by the
+  Jacobian makes single bins at the axis very noisy. The runs are compared by the relative $L^2$ deviation from $t = 0$
+  of the distributions binned in $r$ and in $v_\parallel$ (the 2D slices have too few markers per bin), as medians over
+  $t = 5$–$25$ and $t = 75$–$100$, since single markers next to the axis cause spikes.
 findings: |
-  | run | dev. r, t = 5-25 / 75-100 | dev. v_par, t = 5-25 / 75-100 | max energy drift | lost markers | time |
+  | run | dev. $r$, $t$ = 5-25 / 75-100 | dev. $v_\parallel$, $t$ = 5-25 / 75-100 | max energy drift | lost markers | time |
   |---|---|---|---|---|---|
   | base (shift Bmax, exact) | 0.017 / 0.017 (-1%) | 0.015 / 0.023 (+57%) | 6.4e-4 | 71,544 | 38 min |
   | shift_none (exact) | 0.018 / 0.018 (-1%) | 0.014 / 0.022 (+63%) | 1.5e-3 | 71,544 | 37 min |
@@ -56,34 +61,34 @@ findings: |
   | dg2 | 0.016 / 0.017 (+1%) | 0.015 / 0.021 (+46%) | 5.4e-4 | 71,528 | 46 min |
   | rk4 | 0.016 / 0.016 (+1%) | 0.015 / 0.021 (+47%) | 5.4e-4 | 71,543 | 34 min |
 
-  1. **The exact equilibria stay stationary.** For shift Bmax and shift None, f(100) - f(0) is noise without
-     structure in all views, and the deviation in r has no drift (1.7% - 1.8% at early and late times). The same
+  1. **The exact equilibria stay stationary.** For shift Bmax and shift None, $f(100) - f(0)$ is noise without
+     structure in all views, and the deviation in $r$ has no drift (1.7% - 1.8% at early and late times). The same
      holds for all three pushers.
   2. **The diagnostics see the distributions that are not stationary.** The gyro-Maxwellian control develops a
-     change that is odd in v_par at r/a = 0.4 - 0.9, close to the trapped-passing boundary: more particles with
-     v_par > 0, fewer with v_par < 0 (figure below). This is the radial shift of the passing orbits by the drifts,
-     in opposite directions for co- and counter-passing particles, which moves the density gradient by plus or minus
-     an orbit width. Its deviation grows by 64% in r and by 148% in v_par (to 3.8%). The canonical Maxwellian with
-     the on-axis shift B0 shows the same pattern, weaker (+90% in v_par, to 3.5%), as expected since psi_c jumps only
-     for the barely trapped particles.
-  3. **A slower growth in v_par remains for the exact equilibria** (+46% to +63%, to 2.1% - 2.3%), about the same
-     for discrete gradient 1st and 2nd order and RK4, so it is not an error of the time integration. It does not
-     appear for epsilon = 0.02 (-6%); it is most likely the decorrelation of the Monte-Carlo noise of the fixed
-     markers by the drifts, not a relaxation of f (no structure in f(100) - f(0)).
-  4. **epsilon.** Smaller drifts give smaller deviations and losses (epsilon = 0.02: 1.0% - 1.4% in r, 29k lost
-     markers, energy drift 3.4e-5); larger drifts larger ones (epsilon = 0.1: 140k lost markers, energy drift
+     change that is odd in $v_\parallel$ at $r/a = 0.4$–$0.9$, close to the trapped-passing boundary: more particles
+     with $v_\parallel > 0$, fewer with $v_\parallel < 0$ (figure below). This is the radial shift of the passing orbits
+     by the drifts, in opposite directions for co- and counter-passing particles, which moves the density gradient by
+     plus or minus an orbit width. Its deviation grows by 64% in $r$ and by 148% in $v_\parallel$ (to 3.8%). The
+     canonical Maxwellian with the on-axis shift $B_0$ shows the same pattern, weaker (+90% in $v_\parallel$, to 3.5%),
+     as expected since $\psi_c$ jumps only for the barely trapped particles.
+  3. **A slower growth in $v_\parallel$ remains for the exact equilibria** (+46% to +63%, to 2.1% - 2.3%), about the
+     same for discrete gradient 1st and 2nd order and RK4, so it is not an error of the time integration. It does not
+     appear for $\epsilon = 0.02$ (-6%); it is most likely the decorrelation of the Monte-Carlo noise of the fixed
+     markers by the drifts, not a relaxation of $f$ (no structure in $f(100) - f(0)$).
+  4. **$\epsilon$.** Smaller drifts give smaller deviations and losses ($\epsilon = 0.02$: 1.0% - 1.4% in $r$, 29k lost
+     markers, energy drift 3.4e-5); larger drifts larger ones ($\epsilon = 0.1$: 140k lost markers, energy drift
      7.1e-3, and more spikes from markers crossing the axis region, where the orbits are widest).
   5. **Pushers.** Discrete gradient 2nd order and explicit RK4 give the same deviations (1.6%, 2.1%) and energy
      drift (5.4e-4), slightly below discrete gradient 1st order (1.7%, 2.3%, 6.4e-4); RK4 is the fastest (34 min,
      dg1 38 min, dg2 46 min).
-  6. **Losses and energy.** The runs with epsilon = 0.05 lose the same 71,500 markers (7.8%; same markers, same
+  6. **Losses and energy.** The runs with $\epsilon = 0.05$ lose the same 71,500 markers (7.8%; same markers, same
      orbits), which carry only 1.7e-4 of the mass in the base run (the density vanishes at the edge). The energy
      drift comes mostly from these losses; it differs between the initial conditions because the weights of the lost
      edge markers differ.
   7. **Spikes of the deviation** (up to 100% in the 2D slices) come from single markers close to the magnetic axis,
      whose weight is divided by the small Jacobian of their bin: an artifact of the binning.
 
-  ![Change f(100) - f(0) in (r, v_par), normalized to the 99.5th percentile of f(0), common color scale: runs base (left, exact equilibrium), shift_b0 (middle) and gyro (right, control); dashed: trapped-passing boundary at the outboard midplane for mu B_min = vth².](media:figures/compare_change_rv.png)
+  ![Change f(100) - f(0) in (r, v_par), normalized to the 99.5th percentile of f(0), common color scale: runs base (left, exact equilibrium), shift_b0 (middle) and gyro (right, control); dashed: trapped-passing boundary at the outboard midplane for μ B_min = v_th².](media:figures/compare_change_rv.png)
 
   ![Relative L2 deviation from t = 0 of the distributions binned in r (left) and in v_par (right), running median over 7 saved times; one color per run (legend). The remaining peaks of eps0.1 are bursts of markers next to the axis.](media:figures/compare_deviation.png)
 
@@ -102,7 +107,7 @@ figures:
     caption: "Change f(100) - f(0) of all runs in the poloidal plane (top) and in (r, v_par) (bottom), common color scale per row."
 runs:
   - name: base
-    description: canonical Maxwellian, shift Bmax, epsilon = 0.05, discrete gradient 1st order, grid 16 x 48 x 48, 25 markers per cell, T = 100
+    description: canonical Maxwellian, shift Bmax, $\epsilon = 0.05$, discrete gradient 1st order, grid $16 \times 48 \times 48$, 25 markers per cell, $T = 100$
     params: params_tokamak_equilibrium.py
     command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder base --save-step 5"  # or: bash run_case.sh base
     pproc: "python pproc_tokamak_equilibrium.py base --save-step 5 --video"
@@ -120,7 +125,7 @@ runs:
       - runs/base/figures/scalars.png
 
   - name: shift_none
-    description: "canonical Maxwellian without shift of psi_c (exact equilibrium)"
+    description: 'canonical Maxwellian without shift of $\psi_c$ (exact equilibrium)'
     params: params_tokamak_equilibrium.py
     command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder shift_none --save-step 5 --shift none"  # or: bash run_case.sh shift_none --shift none
     pproc: "python pproc_tokamak_equilibrium.py shift_none --save-step 5 --shift none --video"
@@ -138,7 +143,7 @@ runs:
       - runs/shift_none/figures/scalars.png
 
   - name: shift_b0
-    description: "canonical Maxwellian, shift with the on-axis field B0 (not exactly stationary: psi_c jumps at the bounce points of barely trapped particles)"
+    description: 'canonical Maxwellian, shift with the on-axis field $B_0$ (not exactly stationary: $\psi_c$ jumps at the bounce points of barely trapped particles)'
     params: params_tokamak_equilibrium.py
     command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder shift_b0 --save-step 5 --shift B0"  # or: bash run_case.sh shift_b0 --shift B0
     pproc: "python pproc_tokamak_equilibrium.py shift_b0 --save-step 5 --shift B0 --video"
@@ -174,7 +179,7 @@ runs:
       - runs/gyro/figures/scalars.png
 
   - name: eps0.02
-    description: "as base, epsilon = 0.02 (smaller drifts and orbit widths)"
+    description: 'as base, $\epsilon = 0.02$ (smaller drifts and orbit widths)'
     params: params_tokamak_equilibrium.py
     command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder eps0.02 --save-step 5 --epsilon 0.02"  # or: bash run_case.sh eps0.02 --epsilon 0.02
     pproc: "python pproc_tokamak_equilibrium.py eps0.02 --save-step 5 --epsilon 0.02 --video"
@@ -192,7 +197,7 @@ runs:
       - runs/eps0.02/figures/scalars.png
 
   - name: eps0.1
-    description: "as base, epsilon = 0.1 (larger drifts and orbit widths)"
+    description: 'as base, $\epsilon = 0.1$ (larger drifts and orbit widths)'
     params: params_tokamak_equilibrium.py
     command: "mpirun -n 4 python params_tokamak_equilibrium.py --sim-folder eps0.1 --save-step 5 --epsilon 0.1"  # or: bash run_case.sh eps0.1 --epsilon 0.1
     pproc: "python pproc_tokamak_equilibrium.py eps0.1 --save-step 5 --epsilon 0.1 --video"
