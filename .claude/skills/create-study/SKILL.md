@@ -109,6 +109,8 @@ PR: `mkdocs build --strict` and the media check),
 python tools/build_site.py --drafts && mkdocs build --strict && python tools/study.py check <slug>
 ```
 and open a pull request into `main`. After the merge, the site is rebuilt.
+The study page names the GitHub account that opened the pull request which added the study as its author (without a
+pull request: the author of the commit), so the author of the study opens it.
 
 In a private copy, "publish" means: push to `main` (or merge the pull request) so that the collaborators get it, see
 the README, *Share the site with collaborators*.
