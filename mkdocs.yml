@@ -33,6 +33,9 @@ extra_css:
 
 plugins:
   - search
+  # OFFLINE=true (python tools/build_site.py --offline): the site opens from disk without a server
+  - offline:
+      enabled: !ENV [OFFLINE, false]
   - glightbox:
       auto_caption: false
       zoomable: true

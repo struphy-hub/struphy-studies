@@ -4,19 +4,28 @@
     python tools/build_site.py [--drafts] [--local-media [MEDIA_DIR]]
     mkdocs serve      # preview (or: mkdocs build)
 
+    python tools/build_site.py --offline [--drafts]
+        # generates the pages and builds the site into site/, which opens from disk (site/index.html), without a server
+
 Drafts (``draft: true``) are only included with ``--drafts``. The media are embedded from the public share of each
 study (MPCDF DataShare), see tools/study.py. With ``--local-media``, studies without a share link show their media
 from the local media folder made by ``study.py create`` (a preview before the upload; such a build is never deployed).
+
+The name of the site and the repository linked from the pages are ``site_name`` and ``repo_url`` of mkdocs.yml; the
+text of the landing page (under the title) is ``intro.md``.
 """
 
 from __future__ import annotations
 
 import argparse
 import html
+import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import yaml
@@ -26,7 +35,19 @@ from study import DEFAULT_MEDIA_DIR, STRUPHY_REPO, STUDIES, figure_path, media_u
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
-REPO = "https://github.com/struphy-hub/struphy-studies"
+
+
+def mkdocs_setting(key: str) -> str:
+    """A top-level string setting of mkdocs.yml (read as text: the file has tags that yaml.safe_load rejects)."""
+    match = re.search(rf"(?m)^{key}:\s*(.+?)\s*$", (ROOT / "mkdocs.yml").read_text())
+    if not match:
+        sys.exit(f"mkdocs.yml: no {key!r}")
+    return match.group(1).strip("\"'")
+
+
+REPO = mkdocs_setting("repo_url").rstrip("/")
+# offline build (--offline): pages are <slug>.html instead of <slug>/index.html, which changes relative media paths
+OFFLINE = False
 
 
 def short(commit: str | None) -> str:
@@ -66,6 +87,81 @@ def struphy_tags() -> dict[str, list[str]]:
     return _TAGS
 
 
+_TOKEN: str | None = None
+
+
+def github_token() -> str:
+    """Token for the GitHub API: $GITHUB_TOKEN or $GH_TOKEN (CI), else ``gh auth token``, else none (public only)."""
+    global _TOKEN
+    if _TOKEN is None:
+        _TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+        if not _TOKEN:
+            try:
+                out = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=20)
+                _TOKEN = out.stdout.strip() if out.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                _TOKEN = ""
+    return _TOKEN
+
+
+def github_api(path: str):
+    """GET ``https://api.github.com/<path>`` as JSON (None on any error)."""
+    headers = {"Accept": "application/vnd.github+json"}
+    if github_token():
+        headers["Authorization"] = f"Bearer {github_token()}"
+    try:
+        request = urllib.request.Request(f"https://api.github.com/{path}", headers=headers)
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read())
+    except Exception as e:  # noqa: BLE001 (no network, rate limit, private repository without token, ...)
+        print(f"warning: GitHub API {path}: {e}")
+        return None
+
+
+def study_author(slug: str) -> str | None:
+    """GitHub account of the author of a study: the one who opened the pull request that added its study.yaml, else
+    (added without a pull request) the GitHub account of the author of that commit; None if not found (e.g. not
+    committed yet, or offline)."""
+    try:
+        log = subprocess.run(
+            ["git", "log", "--diff-filter=A", "--format=%H", "--", f"studies/{slug}/study.yaml"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not log:
+        return None
+    if (
+        subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT, capture_output=True, text=True
+        ).stdout.strip()
+        == "true"
+    ):
+        print("warning: shallow git clone, the authors of the studies are not shown (fetch the full history)")
+        return None
+    sha = log[-1]  # the first commit that added the file
+    repo = REPO.removeprefix("https://github.com/")
+    pulls = github_api(f"repos/{repo}/commits/{sha}/pulls") or []
+    pulls = [p for p in pulls if p.get("merged_at")] or pulls
+    if pulls:
+        return min(pulls, key=lambda p: p["number"])["user"]["login"]
+    commit = github_api(f"repos/{repo}/commits/{sha}") or {}
+    return (commit.get("author") or {}).get("login")
+
+
+def author_html(login: str | None) -> str:
+    """The author line of a study page: avatar and link to the GitHub account."""
+    if not login:
+        return ""
+    return (
+        f'<p class="study-author"><img src="https://github.com/{login}.png?size=64" alt=""> '
+        f'<a href="https://github.com/{login}">@{login}</a></p>\n'
+    )
+
+
 def commit_link(commit: str | None) -> str:
     """Link to the Struphy commit, followed by its tags (if any)."""
     if not commit:
@@ -92,9 +188,12 @@ def figure_html(url: str, text: str, description: str | None = None) -> str:
 LOCAL_SHARE = "local-preview"
 
 
-def url(share: str, path: str) -> str:
+def url(share: str, path: str, slug: str = "") -> str:
     """URL of the media file ``path`` of a study: on its public share, or (local preview) next to its page."""
-    return f"media/{path}" if share == LOCAL_SHARE else media_url(share, path)
+    if share != LOCAL_SHARE:
+        return media_url(share, path)
+    # page URL studies/<slug>/ (served) or studies/<slug>.html (offline); the media are in docs/studies/<slug>/media/
+    return f"{slug}/media/{path}" if OFFLINE else f"media/{path}"
 
 
 def resolve_media(text: str, share: str | None, slug: str = "") -> str:
@@ -107,7 +206,7 @@ def resolve_media(text: str, share: str | None, slug: str = "") -> str:
         return re.sub(r"!\[([^\]]*)\]\(media:[^)]*\)", r"*Figure: \1 (media not linked yet).*", text)
     text = re.sub(
         r"!\[([^\]]*)\]\(media:([^)\s]+)\)",
-        lambda m: "\n" + figure_html(url(share, m.group(2)), m.group(1)) + "\n",
+        lambda m: "\n" + figure_html(url(share, m.group(2), slug), m.group(1)) + "\n",
         text,
     )
     # Markdown links are resolved by MkDocs relative to the source file docs/studies/<slug>.md (not to the page URL
@@ -129,16 +228,16 @@ def video_html(url: str, name: str) -> str:
     )
 
 
-def gallery(run: dict, share: str | None) -> str:
+def gallery(run: dict, share: str | None, slug: str) -> str:
     if not share:
         return '!!! warning "Media not linked yet"\n    The media of this study are not available.\n'
     out = []
     if run.get("videos"):
-        videos = "\n".join(video_html(url(share, v), caption(v)) for v in run["videos"])
+        videos = "\n".join(video_html(url(share, v, slug), caption(v)) for v in run["videos"])
         out.append(f'<div class="study-videos">\n{videos}\n</div>\n')
     if run.get("figures"):
         figures = "\n".join(
-            figure_html(url(share, f), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
+            figure_html(url(share, f, slug), caption(f), f"run {run['name']}: {caption(f)}") for f in run["figures"]
         )
         out.append(f'<div class="study-figures">\n{figures}\n</div>\n')
     return "\n".join(out)
@@ -154,7 +253,7 @@ def study_page(slug: str, study: dict) -> str:
     struphy = study.get("struphy") or {}
     commit = struphy.get("commit")
     title = study.get("title", slug)
-    lines = [f"# {title}\n"]
+    lines = [f"# {title}\n", author_html(study.get("_author"))]
     meta = [f":octicons-calendar-16: {study.get('date', '')}", f":octicons-git-commit-16: {commit_link(commit)}"]
     if struphy.get("version"):
         meta.append(f"Struphy {struphy['version']}")
@@ -171,7 +270,7 @@ def study_page(slug: str, study: dict) -> str:
     if study.get("figures") and share:
         figures = "\n".join(
             figure_html(
-                url(share, figure_path(f)),
+                url(share, figure_path(f), slug),
                 f["caption"] if isinstance(f, dict) and f.get("caption") else caption(figure_path(f)),
             )
             for f in study["figures"]
@@ -184,7 +283,7 @@ def study_page(slug: str, study: dict) -> str:
     for run in study.get("runs") or []:
         lines.append(f'<a id="run-{run["name"]}"></a>\n')
         lines.append(f'??? abstract "{run["name"]}: {run.get("description", "")}"\n')
-        lines.append(indent(gallery(run, share)) + "\n")
+        lines.append(indent(gallery(run, share, slug)) + "\n")
 
     # reproduce
     lines.append("## Reproduce\n")
@@ -219,23 +318,23 @@ def card(slug: str, study: dict) -> str:
     draft = " (draft)" if study.get("draft") else ""
     thumb_caption = study.get("thumbnail_caption")
     thumb_caption = f"\n\n    <small>*{thumb_caption}*</small>" if thumb_caption else ""
+    login = study.get("_author")
+    author = f":octicons-person-16: [@{login}](https://github.com/{login}) · " if login else ""
     return f"""-   [![{title}]({thumb})](studies/{slug}.md){thumb_caption}
 
     **[{title}](studies/{slug}.md)**{draft}
 
-    :octicons-calendar-16: {study.get("date", "")} · :octicons-git-commit-16: {commit_link(commit)}
+    {author}:octicons-calendar-16: {study.get("date", "")} · :octicons-git-commit-16: {commit_link(commit)}
 
     {study.get("summary", "")}
 """
 
 
-INDEX = """# Struphy studies
+INDEX = """# {title}
 
 ![Struphy](assets/struphy_banner.png){{ .struphy-banner }}
 
-Numerical studies with [Struphy]({struphy}): convergence studies, verifications and comparisons of models and
-discretizations. Each study lists its runs with the parameter files and commands to reproduce them, and shows the
-figures and videos of every run.
+{intro}
 
 <div class="grid cards" markdown>
 
@@ -244,7 +343,14 @@ figures and videos of every run.
 """
 
 
+def intro() -> str:
+    """Text of the landing page under the title: intro.md of the repository (Markdown)."""
+    path = ROOT / "intro.md"
+    return path.read_text().strip() if path.is_file() else ""
+
+
 def main(argv=None) -> None:
+    global OFFLINE
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--drafts", action="store_true", help="include draft studies")
     parser.add_argument(
@@ -256,7 +362,14 @@ def main(argv=None) -> None:
         help="preview: show the media of the studies without a share link from their local media folder "
         f"<MEDIA_DIR>/<slug>/ (default {DEFAULT_MEDIA_DIR}), copied into docs/; never deploy such a build",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="also build the site (mkdocs build --strict) into site/ so that it opens from disk (site/index.html) "
+        "without a server, e.g. to download or send it as a zip",
+    )
     args = parser.parse_args(argv)
+    OFFLINE = args.offline
 
     shutil.rmtree(DOCS, ignore_errors=True)
     (DOCS / "studies").mkdir(parents=True)
@@ -277,6 +390,7 @@ def main(argv=None) -> None:
             shutil.copytree(local, DOCS / "studies" / slug / "media")
             study = {**study, "media": {**(study.get("media") or {}), "share": LOCAL_SHARE}}
             print(f"{slug}: media from {local} (local preview)")
+        study = {**study, "_author": study_author(slug)}
         studies.append((slug, study))
         (DOCS / "studies" / f"{slug}.md").write_text(study_page(slug, study))
         thumb = path.parent / "thumbnail.png"
@@ -285,8 +399,14 @@ def main(argv=None) -> None:
     # newest first
     studies.sort(key=lambda s: str(s[1].get("date", "")), reverse=True)
     cards = "\n".join(card(slug, study) for slug, study in studies) or "-   No studies yet.\n"
-    (DOCS / "index.md").write_text(INDEX.format(struphy=STRUPHY_REPO, cards=cards))
+    (DOCS / "index.md").write_text(INDEX.format(title=mkdocs_setting("site_name"), intro=intro(), cards=cards))
     print(f"Generated {len(studies)} studies into {DOCS.relative_to(ROOT)}/")
+
+    if args.offline:
+        # the offline plugin of Material (enabled by OFFLINE=true in mkdocs.yml) makes the pages work from disk
+        env = {**os.environ, "OFFLINE": "true"}
+        subprocess.run(["mkdocs", "build", "--strict"], cwd=ROOT, env=env, check=True)
+        print(f"Built the site into {(ROOT / 'site').relative_to(ROOT)}/: open site/index.html in a browser.")
 
 
 if __name__ == "__main__":
