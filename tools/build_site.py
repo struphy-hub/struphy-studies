@@ -320,9 +320,8 @@ def card(slug: str, study: dict) -> str:
     thumb_caption = f"\n\n    <small>*{thumb_caption}*</small>" if thumb_caption else ""
     login = study.get("_author")
     author = f":octicons-person-16: [@{login}](https://github.com/{login}) · " if login else ""
-    return f"""-   [![{title}]({thumb})](studies/{slug}.md){thumb_caption}
-
-    **[{title}](studies/{slug}.md)**{draft}
+    picture = f"[![{title}]({thumb})](studies/{slug}.md){thumb_caption}\n\n    " if (DOCS / thumb).is_file() else ""
+    return f"""-   {picture}**[{title}](studies/{slug}.md)**{draft}
 
     {author}:octicons-calendar-16: {study.get("date", "")} · :octicons-git-commit-16: {commit_link(commit)}
 

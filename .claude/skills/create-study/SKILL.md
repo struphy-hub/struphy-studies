@@ -78,6 +78,8 @@ machine. The run commands in `study.yaml` are run in `params/` (`mpirun -n 4 pyt
 - Captions say which runs a figure shows and their colors or line styles, so that a figure can be read on its own.
 - `figures:` as `- path: figures/x.png` with `caption:`; each run gets a `description` (what distinguishes it),
   `command` and `pproc`.
+- Math is LaTeX: `$...$` inline, `$$...$$` displayed with a blank line before the `$$`; only in `|` block
+  scalars (in quoted YAML strings backslashes are escapes); captions show no math.
 - While runs are pending, mark them as pending in the table and say so in the summary; keep `draft: true`.
 
 ## 5. Preview

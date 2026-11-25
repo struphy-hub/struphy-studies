@@ -43,6 +43,12 @@ figures and videos of the runs (from `<run>/results/`) into `~/struphy-studies-m
 
 `python tools/study.py check --all` checks the media of all studies (done weekly by CI for the published ones).
 
+### Equations
+
+Texts can contain LaTeX math: `$...$` inline and `$$...$$` for displayed equations, with a blank line before
+the `$$`. Write texts with math as YAML block scalars (`description: |`), as `study.py create` does: in quoted
+strings (`"..."`) a backslash starts an escape sequence. Math in figure captions is not rendered.
+
 ## Private studies
 
 To share studies with chosen collaborators before (or instead of) publishing them here, create a private repository
